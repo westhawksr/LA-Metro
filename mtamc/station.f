@@ -1,0 +1,299 @@
+C-------------------------------------------------------------------
+C        STATION --> STATION UTILITY COMPUTATION SUBROUTINE
+C-------------------------------------------------------------------
+       SUBROUTINE STATION(STASTA,IMODE,INDAPM,NHBACC,NHBUTL)
+       INCLUDE 'stadat.com'
+       INCLUDE 'param.com'
+       include 'tpcom.inc'
+       include 'control.inc'
+	 include 'mtamcpar.inc'
+C
+C DATA DECLARATIONS
+C
+      integer*2     IMODE,ic,sc,sc2,dc,T
+      INTEGER*2     INDAPM(MAX_ZONES,MAX_ZONES)
+      REAL*4        STASTA(5,MAX_STATIONS,MAX_STATIONS)
+      REAL*4        INVEH(MAX_ZONES),FARE(MAX_ZONES),
+     *              WALKACC(MAX_ZONES),
+     *              TRANSF(MAX_ZONES),WAIT1(MAX_ZONES),
+     *              WALKEGR(MAX_ZONES),
+     *              WAIT2(MAX_ZONES),TIVT(MAX_ZONES),
+     *              WALKTFR(MAX_ZONES)
+      REAL*4        WALK,STAUTL,KLINE,WAIT1A,WAIT1B
+      REAL*4        LUNRELM(MAX_ZONES,28),LUNRVAL
+      REAL*4        NUNRELM(MAX_ZONES,28),NUNRVAL
+      REAL*4        LCROWDM(MAX_ZONES,28),LCRDVAL
+      REAL*4        NCAPACM(MAX_ZONES,28),NCAPVAL
+      REAL*4        NHBACC(MAX_STATIONS,MAX_STATIONS)
+      REAL*4        NHBUTL(MAX_STATIONS,MAX_STATIONS)
+      CHARACTER*13  NAME(2)
+      DATA          NAME/'Commuter Rail',
+     *                   'Urban Rail   '/
+C
+      WRITE(*,8000) NAME(IMODE)
+ 8000 FORMAT(1X,'Station --> Station',
+     *            ' Utility Computations for ',a13)
+C
+C    READ IN APPROPRIATE ZONE RANGES PER MODE
+c
+      IF(IMODE.EQ.1) FILENO=10
+	IF(IMODE.EQ.2) FILENO=12
+C
+C
+C  ORIGIN STATION LOOP 
+C
+      DO 50 SC=1,MAX_STATIONS
+      IC=sc+MAX_IZONES
+      IF(STANUM(SC).NE.IMODE) GO TO 50
+      IF(STADATA(SC,6).NE.1.0) GOTO 50
+C
+C
+C    USE TRANPLAN I/O TO
+C    OBTAIN LEVEL-OF-SERVICE VALUES
+C
+C
+C
+C.....1ST WAIT TIME
+C     WAIT1
+      PURP=1
+      call intab(FILENO,VAR,ic,PURP,dummy,io)
+	DO 104,II=1,MAX_ZONES
+  104 WAIT1(II)=FLOAT(VAR(II))/100.0
+C.....TRANSFER WAIT TIME
+C     WAIT2
+      PURP=2
+      call intab(fileno,VAR,ic,PURP,dummy,io)
+      DO 105,II=1,MAX_ZONES
+ 105  WAIT2(II)=FLOAT(VAR(II))/100.0
+C.....ACCESS WALK TIME
+      PURP=3
+      call intab(fileno,VAR,ic,PURP,dummy,io)
+      DO 106,II=1,MAX_ZONES
+  106 WALKACC(II)=FLOAT(VAR(II))/100.0
+C.....NUMBER OF TRANSFERS
+C     TRANSF
+      PURP=4
+      call intab(fileno,VAR,ic,PURP,dummy,io)
+      DO 103,II=1,MAX_ZONES
+  103 TRANSF(II)=FLOAT(VAR(II))
+C.....FARE
+C     FARE
+      PURP=6
+      call intab(fileno,VAR,ic,PURP,dummy,io)
+      DO 102,II=1,MAX_ZONES
+ 102  FARE(II)=FLOAT(VAR(II))
+C.....COMMUTER RAIL/URBAN RAIL IN-VEHICLE TIME
+      IF(IMODE.EQ.1) PURP=11
+      IF(IMODE.EQ.2) PURP=10
+      CALL INTAB(FILENO,VAR,IC,PURP,DUMMY,IO)
+      DO 101,II=1,MAX_ZONES
+ 101  INVEH(II)=FLOAT(VAR(II))/100.0
+C.....TOTAL IN-VEHICLE TIME
+      IF(IMODE.EQ.1) PURP=12
+      IF(IMODE.EQ.2) PURP=11
+      CALL INTAB(FILENO,VAR,IC,PURP,DUMMY,IO)
+      DO 107,II=1,MAX_ZONES
+  107 TIVT(II)=FLOAT(VAR(II))/100.0
+C....EGRESS WALK TIME
+      IF(IMODE.EQ.1) PURP=13
+      IF(IMODE.EQ.2) PURP=12
+      CALL INTAB(FILENO,VAR,IC,PURP,DUMMY,IO)
+      DO 108,II=1,MAX_ZONES
+  108 WALKEGR(II)=FLOAT(VAR(II))/100.0
+C...TRANSFER WALK TIME
+      IF(IMODE.EQ.1) PURP=14
+      IF(IMODE.EQ.2) PURP=13
+      CALL INTAB(FILENO,VAR,IC,PURP,DUMMY,IO)
+      DO 109,II=1,MAX_ZONES
+ 109  WALKTFR(II)=FLOAT(VAR(II))/100.0
+C
+C   LINK UNRELIABILITY
+C
+      IF(LUNREL) THEN
+      DO T=1,28
+      CALL INTAB(90,VAR,IC,T,DUMMY,IO)
+      DO II=1,MAX_ZONES
+      LUNRELM(II,T)=FLOAT(VAR(II))/100.0
+      END DO
+      END DO
+      END IF
+C
+C   STOP UNRELIABILITY
+C
+      IF(NUNREL) THEN
+      DO T=1,28
+      CALL INTAB(91,VAR,IC,T,DUMMY,IO)
+      DO II=1,MAX_ZONES
+      NUNRELM(II,T)=FLOAT(VAR(II))/100.0
+      END DO
+      END DO
+      END IF
+C
+C   CROWDING
+C
+      IF(LCROWD) THEN
+      DO T=1,28
+      CALL INTAB(92,VAR,IC,T,DUMMY,IO)
+      DO II=1,MAX_ZONES
+      LCROWDM(II,T)=FLOAT(VAR(II))/100.0
+      END DO
+      END DO
+      END IF
+C
+C   STOP CAPACITY
+C
+      IF(NCAPAC) THEN
+      DO T=1,28
+      CALL INTAB(93,VAR,IC,T,DUMMY,IO)
+      DO II=1,MAX_ZONES
+      NCAPACM(II,T)=FLOAT(VAR(II))/100.0
+      END DO
+      END DO
+      END IF
+C
+C   APM INDICATOR FOR URBAN RAIL
+C
+      IF(APMIND.AND.IMODE.EQ.2) THEN
+      PURP=1
+      CALL INTAB(99,VAR,IC,PURP,DUMMY,IO)
+      DO II=1,MAX_ZONES
+      IF(VAR(II).GT.0) INDAPM(IC,II)=1
+      END DO
+      END IF
+C
+C
+C   DESTINATION STATION LOOP
+C
+      DO 60 SC2=1,MAX_STATIONS
+      DC=SC2+MAX_IZONES
+      IF(IC.EQ.DC) GOTO 60
+      IF(STANUM(SC2).NE.IMODE) GO TO 60
+      IF((INVEH(DC).LE.0.0.OR.INVEH(DC).GE.99999.9).OR.
+     * (TIVT(DC).GT.INVEH(DC))) THEN
+      STAUTL=0.0
+      TD1UTL=0.0
+      TD2UTL=0.0
+      ELSE
+      WALK=WALKEGR(DC)+WALKTFR(DC)
+      KLINE=0.0
+      IF(STADATA(SC2,8).EQ.1) KLINE=KRED
+      IF(STADATA(SC2,8).EQ.2) KLINE=KBLUE
+      IF(STADATA(SC2,8).EQ.3) KLINE=KGREEN
+      IF(STADATA(SC2,8).EQ.4) KLINE=KGOLD
+      IF(STADATA(SC,8).EQ.1) KLINE=KRED
+      IF(STADATA(SC,8).EQ.2) KLINE=KBLUE
+      IF(STADATA(SC,8).EQ.3) KLINE=KGREEN
+      IF(STADATA(SC,8).EQ.4) KLINE=KGOLD
+      IF(STADATA(SC,8).EQ.5.AND.STADATA(SC2,8).EQ.5) KLINE=KRED
+      KLINE=KLINE/(LSUM2UR*LSUM1TRN*LSUMT*LSUM3UW)
+        if(imode.eq.1) then
+        LUNRVAL=LUNRELM(DC,28)
+        NUNRVAL=NUNRELM(DC,28)
+        LCRDVAL=LCROWDM(DC,28)
+        NCAPVAL=NCAPACM(DC,28)
+        WAIT1A=AMIN1(WAIT1(DC),WAITLT)
+        WAIT1B=DIM(WAIT1(DC),WAITLT)
+        STAUTL=COEFF(10)*INVEH(DC) + COEFF(3)*WAIT1A +
+     *       COEFF(4)*WAIT2(DC) + COEFF(5)*(TRANSF(DC)) +
+     *       COEFF(7)*WALKTFR(DC) + COEFF(10)*WAIT1B +
+     *       COEFF(75)*LUNRVAL/(LSUM2CR*LSUM1TRN*LSUMT*LSUM3CW) +
+     *       COEFF(76)*NUNRVAL/(LSUM2CR*LSUM1TRN*LSUMT*LSUM3CW) +
+     *       COEFF(77)*LCRDVAL/(LSUM2CR*LSUM1TRN*LSUMT*LSUM3CW) +
+     *       COEFF(78)*NCAPVAL/(LSUM2CR*LSUM1TRN*LSUMT*LSUM3CW) 
+        elseif(imode.eq.2) then
+        LUNRVAL=LUNRELM(DC,21)
+        NUNRVAL=NUNRELM(DC,21)
+        LCRDVAL=LCROWDM(DC,21)
+        NCAPVAL=NCAPACM(DC,21)
+        WAIT1A=AMIN1(WAIT1(DC),WAITLT)
+        WAIT1B=DIM(WAIT1(DC),WAITLT)
+        STAUTL=COEFF(1)*INVEH(DC) + COEFF(3)*WAIT1A +
+     *       COEFF(4)*WAIT2(DC) + COEFF(5)*TRANSF(DC)+
+     *       COEFF(7)*WALKTFR(DC)+ COEFF(1)*WAIT1B +
+     *       KLINE +
+     *       COEFF(75)*LUNRVAL/(LSUM2UR*LSUM1TRN*LSUMT*LSUM3UW) +
+     *       COEFF(76)*NUNRVAL/(LSUM2CR*LSUM1TRN*LSUMT*LSUM3CW) +
+     *       COEFF(77)*LCRDVAL/(LSUM2UR*LSUM1TRN*LSUMT*LSUM3UW) +
+     *       COEFF(78)*NCAPVAL/(LSUM2CR*LSUM1TRN*LSUMT*LSUM3CW)
+         endif
+C
+C     COMPUTE NHB DIRECT DEMAND ACCESSIBILITY TERM
+C
+      IF(NHBDIR.AND.IMODE.EQ.2) THEN
+      NHBACC(SC,SC2)=INVEH(DC) + 2.0*WAIT1(DC) +
+     *       2.0*WAIT2(DC) + 2.0*(TRANSF(DC)) +
+     *       0.04*FARE(DC)  + 2.0*WALK + LUNRVAL + 2.0*NUNRVAL +
+     *       LCRDVAL + 2.0*NCAPVAL
+      NHBUTL(SC,SC2)=NHBCOEF(1)*INVEH(DC)+NHBCOEF(2)*FARE(DC)+
+     *               NHBCOEF(3)*WAIT1A+
+     *               NHBCOEF(4)*WAIT1B+NHBCOEF(5)*WAIT2(DC)+
+     *               NHBCOEF(6)*TRANSF(DC)+NHBCOEF(7)*WALK
+      END IF
+      END IF
+C
+C     STORE STATION-TO-STATION VALUES
+C
+      STASTA(1,SC,SC2)=STAUTL
+      STASTA(2,SC,SC2)=STAUTL
+      STASTA(3,SC,SC2)=INVEH(DC)
+      STASTA(4,SC,SC2)=FARE(DC)
+      STASTA(5,SC,SC2)=WAIT1(DC)+WAIT2(DC)
+      TXFERS1(SC,SC2)=TRANSF(DC)
+C....................................................................
+      IF((DEBUG).AND.(STAUTL.NE.0.0)) THEN
+      WRITE(31) IMODE,IC,DC,WAIT1(DC),WAIT2(DC),
+     *                TRANSF(DC),FARE(DC),WALKACC(DC),INVEH(DC),
+     *                TIVT(DC),WALKEGR(DC),WALKTFR(DC),
+     *                STAUTL,LUNRVAL,NUNRVAL,LCRDVAL,NCAPVAL
+      IF(SDETAIL) THEN
+      WRITE(61,9029)  IC,STANAME(SC),NAME(IMODE),DC,STANAME(SC2),
+     *                WAIT1(DC),WAIT2(DC),
+     *                TRANSF(DC),FARE(DC),WALKACC(DC),INVEH(DC),
+     *                TIVT(DC),WALKEGR(DC),WALKTFR(DC),LUNRVAL,
+     *                NUNRVAL,LCRDVAL,NCAPVAL,STAUTL
+ 9029 FORMAT(/1X,'STATION --> STATION UTILITY COMPUTATIONS'/
+     *       1X,'----------------------------------------'//
+     *       1X,'ORIGIN            STATION=',I8,1X,A37,
+     *          ' FOR ',A13/
+     *       1X,'DESTINATION       STATION=',I8,1X,A37/
+     *       1X,'1ST WAIT             TIME=',F8.2/
+     *       1X,'TRANSFER WAIT        TIME=',F8.2/
+     *       1X,'NUMBER OF TRANSFERS      =',F8.2/
+     *       1X,'FARE                     =',F8.2/
+     *       1X,'ACCESS WALK TIME         =',F8.2/
+     *       1X,'PRIMARY MODE IN-VEHICLE  =',F8.2/
+     *       1X,'TOTAL IN-VEHICLE TIME    =',F8.2/
+     *       1X,'EGRESS WALK TIME         =',F8.2/
+     *       1X,'TRANSFER WALK TIME       =',F8.2//
+     *       1X,'LINK UNRELIABILITY TIME  =',F8.2/
+     *       1X,'STOP UNRELIABILITY TIME  =',F8.2/
+     *       1X,'LINK CROWDING      TIME  =',F8.2/
+     *       1X,'STOP CAPACITY      TIME  =',F8.2/
+     *       1X,'UTILITY VALUE            =',F10.5/)
+      END IF
+      END IF
+C.......................................................................
+   60 CONTINUE
+   50 CONTINUE
+      IF(LUNREL) THEN
+      CLOSE(90,STATUS='KEEP')
+      CALL PREPIO(FLUNREL,90)
+      END IF
+      IF(NUNREL) THEN
+      CLOSE(91,STATUS='KEEP')
+      CALL PREPIO(FNUNREL,91)
+      END IF
+      IF(LCROWD) THEN
+      CLOSE(92,STATUS='KEEP')
+      CALL PREPIO(FCROWD,92)
+      END IF
+      IF(NCAPAC) THEN
+      CLOSE(93,STATUS='KEEP')
+      CALL PREPIO(FCAPAC,93)
+      END IF
+      IF(APMIND) THEN
+      CLOSE(99,STATUS='KEEP')
+      CALL PREPIO(FAPMIND,99)
+      END IF
+      RETURN
+      END
