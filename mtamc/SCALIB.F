@@ -2,40 +2,46 @@ C***********************************************************************
 C     SUBROUTINE SCALIB: CALIBRATES BIAS CONSTANT VALUES               *
 C***********************************************************************
       SUBROUTINE SCALIB(ITER,TESUM,CALSUM,
-     *                  PTRIP,TTRIP,CBDTRAN,INTRATRP)
+     *                  PTRIP,TTRIP,CBDTRAN,INTRATRP,XTESUM,STAVOL,
+     *                  TBRTEGR,CBDTRCR,STASUM2)
       INCLUDE 'stadat.com'
       INCLUDE 'param.com'
       include 'mtamcpar.inc'
 C
 C     DECLARATIONS NEEDED FOR THIS SUBROUTINE
 C
-      INTEGER*2   ITER,TEMODE(34),TMODE
+      INTEGER*2   ITER,TEMODE(36),TMODE,IMODE
+      REAL*4      RFACT(3)
+      REAL*8      TBRTEGR
       REAL*8      POBS,PEST,RCON,ECON,NCON,DENOBS,DENEST
       REAL*8      TO,TE
-      REAL*8      TOTAL,WLKRAPID,BIKRAPID,WLKTWY,WLKEXP
-      REAL*8      DRVRAPID,WLKBRT,DRVBRT,DRVTWY,DRVEXP,BIKEXP,BIKTWY
-      REAL*8      BIKBRT
-      REAL*8      WLTXFER,BLTXFER,DLTXFER,WRTXFER,BRTXFER,DRTXFER,
-     *            WETXFER,BETXFER,DETXFER,WTTXFER,BTTXFER,DTTXFER,
-     *            WBTXFER,BBTXFER,DBTXFER,CBUSEGR,UBUSEGR
-      REAL*8      IAUTO(5),IWALK(5),IBIKE(5)
       REAL*8      TEMP1,TEMP2,TEMP3
-      REAL*8      OESUM(34,6),DFSUM(34,6),PCSUM(34,6)
+      REAL*8      OESUM(36,6),DFSUM(36,6),PCSUM(36,6)
       REAL*8      COESUM(4,6),DFSUMC(4,5),PCSUMC(4,5)
-      REAL*8      TESUM(80,6),CALSUM(4,6)
-      REAL*4      CBDTRAN,INTRATRP(7,6)
-      REAL*8      TMP(37,5),DENOM
+      REAL*8      TESUM(80,6),CALSUM(4,6),STAVOL(5,5)
+      REAL*4      CBDTRAN,INTRATRP(7,6),CBDTRCR
+      REAL*8      TMP(38,5),DENOM,XTESUM(36,6)
       REAL*8      OTRIP(21,5),INCDAT(5),PTRIP(21,5),TTRIP(21,5)
-      REAL*8      CVALUE(8),EQUIVT
+      REAL*8      CVALUE(8),EQUIVT,PCTRIP(21,5)
       REAL*8      OTRN(7,6),ETRN(7,6),DTRN(7,6)
+      REAL*8      STASUM2(MAX_STATIONS,4)
       INTEGER*4   C, INC, K, MODE, T,T1,T2,MAXT
       INTEGER*4   INCGP,PINDEX,AMODE
-      LOGICAL     CCODE(65),EXISTS
+      LOGICAL     EXISTS
       CHARACTER*80 HEADER
+      CHARACTER*13 NAME(5)
       DATA        TEMODE/1,2,3,51,5,6,7,8,9,10,
      *                   11,12,13,14,15,16,17,18,19,20,
-     *                   48,49,52,50,56,57,64,65,66,70,
-     *                   68,72,74,75/
+     *                   48,49,52,50,56,58,64,65,66,70,
+     *                   68,72,74,75,59,57/
+      DATA          NAME/'Commuter Rail',
+     *                   'Urban Rail   ',
+     *                   'Express Bus  ',
+     *                   'Transitway   ',
+     *                   'BRT          '/
+      INCDAT=0.0
+      OTRIP=0.0
+      OESUM=0.0
 C
       WRITE(26,1) ITER
       WRITE(51,1) ITER
@@ -49,9 +55,34 @@ C
       IF(DENOM.LT.(-71.0)) THEN
          MINVAL=(-70.0)*LSUMS*LSUMA
       END IF
+      IF(.NOT.HFACT) THEN
       WRITE(26,3) MINVAL
       WRITE(*,3) MINVAL
     3 FORMAT(/1X,' Minimum Allowable Constant=',F10.3//)
+      END IF
+C
+C     ADJUST TESUM VALUES FOR BLENDED RESULTS
+C
+      DO T=1,6
+C...COMMUTER RAIL
+      TESUM(11,T)=TESUM(11,T)+XTESUM(1,T)+XTESUM(6,T)
+      TESUM(12,T)=TESUM(12,T)+XTESUM(2,T)+XTESUM(7,T)
+      TESUM(13,T)=TESUM(13,T)+XTESUM(3,T)+XTESUM(8,T)
+      TESUM(14,T)=TESUM(14,T)+XTESUM(4,T)+XTESUM(9,T)
+      TESUM(74,T)=TESUM(74,T)+XTESUM(5,T)+XTESUM(10,T)
+C...URBAN RAIL
+      TESUM(15,T)=TESUM(15,T)-XTESUM(1,T)+XTESUM(11,T)
+      TESUM(16,T)=TESUM(16,T)-XTESUM(2,T)+XTESUM(12,T)
+      TESUM(17,T)=TESUM(17,T)-XTESUM(3,T)+XTESUM(13,T)
+      TESUM(18,T)=TESUM(18,T)-XTESUM(4,T)+XTESUM(14,T)
+      TESUM(75,T)=TESUM(75,T)-XTESUM(5,T)+XTESUM(15,T)
+C...BUS RAPID TRANSIT
+      TESUM(56,T)=TESUM(56,T)-XTESUM(6,T)-XTESUM(11,T)
+      TESUM(57,T)=TESUM(57,T)-XTESUM(7,T)-XTESUM(12,T)
+      TESUM(58,T)=TESUM(58,T)-XTESUM(8,T)-XTESUM(13,T)
+      TESUM(59,T)=TESUM(59,T)-XTESUM(9,T)-XTESUM(14,T)
+      TESUM(73,T)=TESUM(73,T)-XTESUM(10,T)-XTESUM(15,T)
+      END DO
 C
 C     READ OBSERVED CALIBRATION VALUES FROM UNIT 50
 C
@@ -61,121 +92,15 @@ C
       WRITE(26,500)
   500 FORMAT(/' SCALIB 500 (F) CALIBRATION TARGET VALUE FILE',
      *       ' NOT FOUND'/)
-      STOP
+      STOP 500
       END IF
       OPEN(50,FILE=CTVINP,STATUS='OLD',FORM='FORMATTED')
-      READ(50,4) HEADER
-    4 FORMAT(A80)
-      READ(50,*,END=100) CCODE
-      WRITE(26,2) CCODE
-    2 FORMAT(' CCODE( 1)=',L1,' KTRN,KSR,K3P,K4P,KNMOT,KBIKE',
-     *                        ' (TRANSIT,SHARED RIDE,3-PERSON,',
-     *                        '4-PERSON,NON-MOTORIZED,BIKE)'/
-     *       ' CCODE( 2)=',L1,' KDTRN  (DRIVE ACCESS TO TRANSIT'/
-     *       ' CCODE( 3)=',L1,' NOT USED'/
-     *       ' CCODE( 4)=',L1,' KCR    (COMMUTER RAIL)'/
-     *       ' CCODE( 5)=',L1,' KUR    (URBAN RAIL)'/
-     *       ' CCODE( 6)=',L1,' KEBUS  (EXPRESS BUS)'/
-     *       ' CCODE( 7)=',L1,' KWAY   (TRANSITWAY)'/
-     *       ' CCODE( 8)=',L1,' KBKCR  (BIKE TO COMMUTER RAIL)'/
-     *       ' CCODE( 9)=',L1,' KBKUR  (BIKE TO URBAN RAIL)'/
-     *       ' CCODE(10)=',L1,' KBCR   (BUS TO COMMUTER RAIL)'/
-     *       ' CCODE(11)=',L1,' KBUR   (BUS TO URBAN RAIL)'/
-     *       ' CCODE(12)=',L1,' KBRPDW (BUS TRANSFER TO RAPID WALK)'/
-     *       ' CCODE(13)=',L1,' KBTWYW (BUS TRANSFER TO WALK ',
-     *                                 'TRANSITWAY)'/
-     *       ' CCODE(14)=',L1,' KBEXPW (BUS TRANSFER TO WALK EXPRESS)'/
-     *       ' CCODE(15)=',L1,' KINFL  (INFORMAL DRIVE ACCESS TO ',
-     *                                 'LOCAL BUS)'/
-     *       ' CCODE(16)=',L1,' KINFR  (INFORMAL DRIVE ACCESS TO ',
-     *                                 'RAPID BUS)'/
-     *       ' CCODE(17)=',L1,' KTRNT  (TRANSIT CONSTANT BY DISTANCE)'/
-     *       ' CCODE(18)=',L1,' KBRPDB (BUS TRANSFER TO BIKE RAPID)'/
-     *       ' CCODE(19)=',L1,' KBRT   (BRT)'/
-     *       ' CCODE(20)=',L1,' KRBUS  (RAPID BUS)'/
-     *       ' CCODE(21)=',L1,' KBBRTW (BUS TRANSFER TO WALK BRT)'/
-     *       ' CCODE(22)=',L1,' KBRPDD (BUS TRANSFER TO DRIVE RAPID)'/
-     *       ' CCODE(23)=',L1,' KBBRTD (BUS TRANSFER TO DRIVE BRT)'/
-     *       ' CCODE(24)=',L1,' CCBD   (CBD CONSTANT)'/
-     *       ' CCODE(25)=',L1,' KBTWYD (BUS TRANSFER TO DRIVE ',
-     *                        'TRANSITWAY)'/
-     *       ' CCODE(26)=',L1,' KBEXPD (BUS TRANSFER TO DRIVE ',
-     *                        'EXPRESS)'/
-     *       ' CCODE(27)=',L1,' KBBUS  (BIKE TO LOCAL BUS)'/
-     *       ' CCODE(28)=',L1,' KBRPD  (BIKE TO RAPID BUS)'/
-     *       ' CCODE(29)=',L1,' KBWAY  (BIKE TO TRANSITWAY)'/
-     *       ' CCODE(30)=',L1,' KBEXP  (BIKE TO EXPRESS)'/
-     *       ' CCODE(31)=',L1,' KBBRT  (BIKE TO BRT)'/
-     *       ' CCODE(32)=',L1,' KBTWYB (BUS TRANSFERS TO BIKE ',
-     *                        'TRANSITWAY)'/
-     *       ' CCODE(33)=',L1,' KBEXPB (BUS TRANSFERS TO BIKE ',
-     *                        'EXPRESS)'/
-     *       ' CCODE(34)=',L1,' KBBRTB (BUS TRANSFERS TO BRT)'/
-     *       ' CCODE(35)=',L1,' KINTRAWK (INTRAZONAL WALK)'/
-     *       ' CCODE(36)=',L1,' KINTRABK (INTRAZONAL BIKE)'/
-     *       ' CCODE(37)=',L1,' KPUR (PNR TO URBAN RAIL)'/
-     *       ' CCODE(38)=',L1,' KWCR (WALK TO COMMUTER RAIL)'/
-     *       ' CCODE(39)=',L1,' KPNR (PNR TO COMMUTER & URBAN'/
-     *       ' CCODE(40)=',L1,' KWUR (WALK TO URBAN RAIL)'/
-     *       ' CCODE(41)=',L1,' KWWAY (WALK TO TRANSITWAY'/
-     *       ' CCODE(42)=',L1,' DRIVE TO EXPRESS BUS (KDEXP)'/
-     *       ' CCODE(43)=',L1,' KPCR (PNR TO COMMUTER RAIL)'/
-     *       ' CCODE(44)=',L1,' KDA(5) (DRIVE ALONE SEGMENT 5)'/
-     *       ' CCODE(45)=',L1,' KAUT(1) (AUTO CONSTANT SEGMENT 1)'/
-     *       ' CCODE(46)=',L1,' COEFF(31) (WALK TO LOCAL',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(47)=',L1,' COEFF(32) (BIKE TO LOCAL',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(48)=',L1,' KWBUS (WALK TO LOCAL BUS)'/
-     *       ' CCODE(49)=',L1,' COEFF(33) (DRIVE TO LOCAL',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(50)=',L1,' COEFF(34) (WALK TO RAPID',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(51)=',L1,' COEFF(35) (BIKE TO RAPID',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(52)=',L1,' COEFF(36) (DRIVE TO RAPID',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(53)=',L1,' COEFF(37) (WALK TO EXPRESS',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(54)=',L1,' COEFF(38) (BIKE TO EXPRESS',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(55)=',L1,' COEFF(39) (DRIVE TO EXPRESS',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(56)=',L1,' COEFF(40) (WALK TO TRANSITWAY',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(57)=',L1,' COEFF(41) (BIKE TO TRANSITWAY',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(58)=',L1,' COEFF(42) (DRIVE TO TRANSITWAY',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(59)=',L1,' COEFF(43) (WALK TO BRT',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(60)=',L1,' COEFF(44) (BIKE TO BRT',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(61)=',L1,' COEFF(45) (DRIVE TO BRT',
-     *                        ' BUS TRANSFERS)'/
-     *       ' CCODE(62)=',L1,' COEFF(46) (COMMUTER',
-     *                        ' RAIL BUS EGRESS)'/
-     *       ' CCODE(63)=',L1,' COEFF(47) (URBAN',
-     *                        ' RAIL BUS EGRESS)'/
-     *       ' CCODE(64)=',L1,' KWCR(1) (WALK TO COMMUTER RAIL)'/
-     *       ' CCODE(65)=',L1,' KWUR(1) (WALK TO URBAN RAIL)'/)
-      READ(50,4) HEADER
-      READ(50,*) BIKRAPID,DRVRAPID,WLKRAPID,BIKEXP,DRVEXP,WLKEXP,
-     *           BIKTWY,DRVTWY,WLKTWY,BIKBRT,DRVBRT,WLKBRT
-      READ(50,4) HEADER
-      READ(50,*) IAUTO(1),IWALK(1),IBIKE(1),IAUTO(2),IWALK(2),IBIKE(2),
-     *           IAUTO(3),IWALK(3),IBIKE(3),IAUTO(4),IWALK(4),IBIKE(4),
-     *           IAUTO(5),IWALK(5),IBIKE(5)
-      READ(50,4) HEADER
-      READ(50,*) WLTXFER,BLTXFER,DLTXFER,WRTXFER,BRTXFER,DRTXFER,
-     *           WETXFER,BETXFER,DETXFER,WTTXFER,BTTXFER,DTTXFER,
-     *           WBTXFER,BBTXFER,DBTXFER,CBUSEGR,UBUSEGR
-  45     READ(50,*,END=100) INCGP,MODE,TOTAL
-         IF(INCGP.EQ.99) GO TO 100
-         IF((MODE.LE.0).OR.(MODE.GT.37).OR.(INCGP.LE.0).OR.
+  45  READ(50,*,END=100) INCGP,MODE,TOTAL
+      IF(INCGP.EQ.99) GO TO 100
+      IF((MODE.LE.0).OR.(MODE.GT.38).OR.(INCGP.LE.0).OR.
      *      (INCGP.GT.NCATS)) THEN
-         WRITE(26,103) MODE,INCGP
-  103    FORMAT(' SCALIB 45 (F) ERROR IN CALIBRATION INDICES ',
+      WRITE(26,103) MODE,INCGP
+  103 FORMAT(' SCALIB 45 (F) ERROR IN CALIBRATION INDICES ',
      *          ' MODE=',I3,' MARKET SEGMENT=',I2)
          STOP 45
          END IF
@@ -188,34 +113,30 @@ C ------------------------------------------
 C --------------------------------------------
          GOTO 45
   100 CONTINUE
-  150 READ(50,*,END=300) PINDEX,INCDAT
+  150 READ(50,*,END=300) PINDEX,(INCDAT(K),K=1,NCATS)
       IF(PINDEX.LT.1.OR.PINDEX.GT.21) THEN
       WRITE(26,151) PINDEX
   151 FORMAT(' SCALIB 151 (F) ILLOGICAL VALUE (',I3,') FOR TRIP',
      *       ' LENGTH INDICATOR IN OBSERVED TRANSIT SHARE FILE')
       STOP 151
       END IF
-      OTRIP(PINDEX,1)=INCDAT(1)
-      OTRIP(PINDEX,2)=INCDAT(2)
-      OTRIP(PINDEX,3)=INCDAT(3)
-      OTRIP(PINDEX,4)=INCDAT(4)
-      OTRIP(PINDEX,5)=INCDAT(5)
+      PCTRIP(PINDEX,1)=INCDAT(1)
+      PCTRIP(PINDEX,2)=INCDAT(2)
+      PCTRIP(PINDEX,3)=INCDAT(3)
+      PCTRIP(PINDEX,4)=INCDAT(4)
+      PCTRIP(PINDEX,5)=INCDAT(5)    
       MAXT=PINDEX
 C ---------------------------------------------------------
       IF(DEBUG) THEN
-      WRITE(26,152) PINDEX,INCDAT,OTRIP(PINDEX,1),
-     *              OTRIP(PINDEX,2),OTRIP(PINDEX,3),
-     *              OTRIP(PINDEX,4),OTRIP(PINDEX,5),MAXT
-  152 FORMAT(' PINDEX=',I2,' INCDAT=',5(1X,F6.3),
-     *       ' OTRIP=',5(1X,F6.3),' MAXT=',I2)
+      WRITE(26,152) PINDEX,INCDAT,PCTRIP(PINDEX,1),
+     *              PCTRIP(PINDEX,2),PCTRIP(PINDEX,3),
+     *              PCTRIP(PINDEX,4),PCTRIP(PINDEX,5),MAXT
+  152 FORMAT(' PINDEX=',I2,' INCDAT=',5(1X,F10.3),
+     *       ' PCTRIP=',5(1X,F10.3),' MAXT=',I2)
       END IF
 C ---------------------------------------------------------
       GO TO 150
   300 CLOSE(50,STATUS='KEEP')
-      IF(CCODE(3)) THEN
-      CCODE(3)=.FALSE.
-      CCODE(39)=.TRUE.
-      END IF
 C
 C SUM OBSERVED DATA TO OESUM VARIABLE
 C
@@ -249,7 +170,7 @@ C OESUM(22) = DRV  TO RAPID BUS
 C OESUM(23) = BIKE
 C OESUM(24) = TOTAL NON-MOTORIZED
 C OESUM(25) = WALK TO BRT
-C OESUM(26) = DRV  TO BRT
+C OESUM(26) = PNR  TO BRT
 C OESUM(27) = 4+ PERSON AUTO
 C OESUM(28) = BIKE TO LOCAL BUS
 C OESUM(29) = BIKE TO RAPID BUS
@@ -258,6 +179,8 @@ C OESUM(31) = BIKE TO TRANSITWAY
 C OESUM(32) = BIKE TO BRT
 C OESUM(33) = BIKE TO COMMUTER RAIL
 C OESUM(34) = BIKE TO URBAN RAIL
+C OESUM(35) = KNR  TO BRT
+C OESUM(36) = BUS  TO BRT
 C
 C
       DO 311,INC=1,NCATS
@@ -320,10 +243,14 @@ C...RAPID BUS
          ETRN(2,INC)=TESUM(48,INC)+TESUM(49,INC)+TESUM(66,INC)
 C...BRT
          OESUM(25,INC)= TMP(28,INC)
-         OESUM(26,INC)= TMP(29,INC) + TMP(30,INC)
+         OESUM(26,INC)= TMP(29,INC)  
+         OESUM(35,INC)= TMP(30,INC)
          OESUM(32,INC)= TMP(37,INC)
-         OTRN(5,INC)=OESUM(25,INC)+OESUM(26,INC)+OESUM(32,INC)
-         ETRN(5,INC)=TESUM(56,INC)+TESUM(57,INC)+TESUM(72,INC)
+         OESUM(36,INC)= TMP(38,INC)
+         OTRN(5,INC)=OESUM(25,INC)+OESUM(26,INC)+OESUM(32,INC)+
+     *   OESUM(35,INC)+OESUM(36,INC)
+         ETRN(5,INC)=TESUM(56,INC)+TESUM(57,INC)+TESUM(58,INC)+
+     *   TESUM(59,INC)+TESUM(72,INC)
 C...TOTAL TRANSIT
          OESUM(5,INC)=OESUM(7,INC)+OESUM(8,INC)+OESUM(9,INC)+
      *                OESUM(10,INC)+OESUM(11,INC)+OESUM(12,INC)+
@@ -333,12 +260,12 @@ C...TOTAL TRANSIT
      *                OESUM(22,INC)+OESUM(25,INC)+OESUM(26,INC)+
      *                OESUM(28,INC)+OESUM(29,INC)+OESUM(30,INC)+
      *                OESUM(31,INC)+OESUM(32,INC)+OESUM(33,INC)+
-     *                OESUM(34,INC)
+     *                OESUM(34,INC)+OESUM(35,INC)+OESUM(36,INC)
   311 CONTINUE
 C
 C...TOTAL PERSON & TOTAL NON-MOTORIZED
         DO 313,INC=1,NCATS
-         DO 312,IMO=1,34
+         DO 312,IMO=1,36
 	        IF(IMO.LE.7) THEN
 	        OTRN(IMO,6)=OTRN(IMO,6)+OTRN(IMO,INC)
 	        ETRN(IMO,6)=ETRN(IMO,6)+ETRN(IMO,INC)
@@ -357,9 +284,8 @@ C
 C    DFSUM = ABSOLUTE DIFFERENCE
 C    PCSUM = PERCENT DIFFERENCE
 C
-
          DO 400,INC=1,6
-         DO 410,MODE=1,34
+         DO 410,MODE=1,36
             TMODE=TEMODE(MODE)
             DFSUM(MODE,INC)=TESUM(TMODE,INC)-OESUM(MODE,INC)
             IF(OESUM(MODE,INC).GT.0.0) THEN
@@ -370,7 +296,6 @@ C
             IF(MODE.LE.7) DTRN(MODE,INC)=ETRN(MODE,INC)-OTRN(MODE,INC)
   410    CONTINUE
   400    CONTINUE
-
 C
          DO 430,INC=1,NCATS
          DO 430,MODE=1,4
@@ -382,6 +307,40 @@ C
          PCSUMC(MODE,INC)=0.0
          ENDIF
  430     CONTINUE
+C
+C  STORE TRANSIT OBSERVED VALUES
+C
+         DO C=1,NCATS
+         DO K=1,21
+         IF(K.LE.MAXT) THEN
+         OTRIP(K,C)=PCTRIP(K,C)
+         ELSE
+         OTRIP(K,C)=PCTRIP(MAXT,C)         
+         END IF
+         END DO
+         END DO
+C
+C  COMPUTE HOUSEHOLD FACTORS IF REQUESTED
+C
+         IF(HFACT.AND.HCALIB) THEN
+         DO K=1,3
+         RFACT(K)=OESUM(6,K)/TESUM(6,K)
+         HHFACT(K)=RFACT(K)*HHFACT(K)       
+         END DO
+         WRITE(26,180) OESUM(6,1),TESUM(6,1),RFACT(1),HHFACT(1),
+     *                 OESUM(6,2),TESUM(6,2),RFACT(2),HHFACT(2),
+     *                 OESUM(6,3),TESUM(6,3),RFACT(3),HHFACT(3)
+ 180     FORMAT(/1X,'HOUSEHOLD INCOME FACTOR CALIBRATION'/
+     *           1X,'-----------------------------------'/
+     *           1X,'OBSERVED  ESTIMATED  ADJUSTMENT  REVISED'/
+     *           1X,'  TRIPS      TRIPS     FACTOR     FACTOR'/
+     *           1X,'--------  ---------  ----------  --------'/
+     *           3(1X,F8.0,2X,F9.0,3X,F8.4,1X,F8.6/))
+         CLOSE(8,STATUS='KEEP')
+         CALL PREPIO(PERTT,8)
+         GO TO 170
+         END IF
+C
 C Write out observed data, and comparisons ..........................
 C
   450 CONTINUE
@@ -449,8 +408,9 @@ C
 C
 C
       WRITE(26,1018)
- 1018 FORMAT(//,20X,'R E P O R T   1B  (O B S E R V E D  D A T A)',/,
-     *          20X,
+ 1018 FORMAT(//,20X,'R E P O R T   1B  (O B S E R V E D  D A T A)',/)
+      WRITE(26,9018)
+ 9018 FORMAT(   20X,
      *          'SUMMARIZE TRANSIT TRIPS BY MarketSegment       ',//,
      *       1X,'Market   ','   LOCAL   ','  LOCAL  ',' EXPRESS ',
      *          '  EXRESS  ',
@@ -458,111 +418,58 @@ C
      *          ' COMMUTER ',' COMMUTER ',' COMMUTER  ',' URBAN   ',
      *          '  URBAN   ','  URBAN   ','  URBAN    ',' TWAY    ',
      *          '  TWAY    ','  RAPID   ','  RAPID    ','   BRT   ',
-     *          '   BRT    '/
+     *          '   BRT    ','   BRT   ','   BRT   '/
      *       1X,'GROUP    ','    BUS   ','     BUS   ','  BUS   ',
      *          '   BUS     ',
      *          '  RAIL   ',
      *          '  RAIL   ','   RAIL     ',' RAIL    ','   RAIL    ',
      *          '  RAIL   ','   RAIL     ',' RAIL  ','    BUS    ',
      *          '   BUS    ','   BUS      ','  BUS   ','     BUS    ',
-     *          '  BUS   '/
+     *          '  BUS   ','    BUS ','     BUS    '/
      *       1X,'         ','   WALK  ','    DRIVE  ','  WALK  ',
      *          '   DRIVE  ',
      *          '   WALK  ',
      *          '    BUS   ','    PNR     ','   KNR     ','   WALK   ',
      *          '    BUS   ','  PNR     ','  KNR     ','  WALK   ',
      *          '   DRIVE  ','   WALK    ','  DRIVE    ','  WALK   ',
-     *          '  DRIVE    '/
+     *          '   BUS     ','  PNR     ',' KNR     '/
      *       1X,'---------','---------','---------','----------',
      *          '----------',
      *          '----------',
      *          '---------','---------','---------','-----------',
      *          '---------','---------','---------','-----------',
      *          '---------','---------','----------------',
-     *          '---------','-----------')
+     *          '---------','-----------','---------','-----------')
       DO 2016 C=1,NCATS
-         WRITE(26,9005) C,(OESUM(T,C),T=7,22),OESUM(25,C),OESUM(26,C)
- 9005    FORMAT(5X,I1,2X,18F10.0)
+         WRITE(26,9005) C,(OESUM(T,C),T=7,22),OESUM(25,C),OESUM(36,C),
+     *                     OESUM(26,C),OESUM(35,C)
+ 9005    FORMAT(5X,I1,2X,20F10.0)
  2016 CONTINUE
-      WRITE(26,9006) (OESUM(T,6),T=7,22),OESUM(25,6),OESUM(26,6)
- 9006 FORMAT(/,2X,'TOTAL',1X,18F10.0)
+      WRITE(26,9006) (OESUM(T,6),T=7,22),OESUM(25,6),OESUM(36,6),
+     *                OESUM(26,6),OESUM(35,6)
+ 9006 FORMAT(/,2X,'TOTAL',1X,20F10.0)
       WRITE(26,1028)
- 1028 FORMAT(//,20X,'R E P O R T   2B  (E S T I M A T E D  D A T A)',/,
-     *          20X,
-     *          'SUMMARIZE TRANSIT TRIPS BY MarketSegment       ',//,
-     *       1X,'Market   ','   LOCAL   ','  LOCAL  ',' EXPRESS ',
-     *          '  EXRESS  ',
-     *          ' COMMUTER  ',
-     *          ' COMMUTER ',' COMMUTER ',' COMMUTER  ',' URBAN   ',
-     *          '  URBAN   ','  URBAN   ','  URBAN    ',' TWAY    ',
-     *          '  TWAY    ','  RAPID   ','  RAPID    ','   BRT   ',
-     *          '   BRT    '/
-     *       1X,'GROUP    ','    BUS   ','     BUS   ','  BUS   ',
-     *          '   BUS     ',
-     *          '  RAIL   ',
-     *          '  RAIL   ','   RAIL     ',' RAIL    ','   RAIL    ',
-     *          '  RAIL   ','   RAIL     ',' RAIL  ','    BUS    ',
-     *          '   BUS    ','   BUS      ','  BUS   ','     BUS    ',
-     *          '  BUS   '/
-     *       1X,'         ','   WALK  ','    DRIVE  ','  WALK  ',
-     *          '   DRIVE  ',
-     *          '   WALK  ',
-     *          '    BUS   ','    PNR     ','   KNR     ','   WALK   ',
-     *          '    BUS   ','  PNR     ','  KNR     ','  WALK   ',
-     *          '   DRIVE  ','   WALK    ','  DRIVE    ','  WALK   ',
-     *          '  DRIVE    '/
-     *       1X,'---------','---------','---------','----------',
-     *          '----------',
-     *          '----------',
-     *          '---------','---------','---------','-----------',
-     *          '---------','---------','---------','-----------',
-     *          '---------','---------','----------------',
-     *          '---------','-----------')
+ 1028 FORMAT(//,20X,'R E P O R T   2B  (E S T I M A T E D  D A T A)',/)
+      WRITE(26,9018)
       DO C=1,NCATS
       WRITE(26,9005) C,(TESUM(K,C),K=7,10),(TESUM(K1,C),K1=11,14),
      *      (TESUM(K2,C),K2=15,18),(TESUM(K3,C),K3=19,20),
-     *      (TESUM(K4,C),K4=48,49),(TESUM(K5,C),K5=56,57)
+     *      (TESUM(K4,C),K4=48,49),(TESUM(K5,C),K5=56,59)
       END DO
       WRITE(26,9006) (TESUM(K,6),K=7,10),(TESUM(K1,6),K1=11,14),
      *      (TESUM(K2,6),K2=15,18),(TESUM(K3,6),K3=19,20),
-     *      (TESUM(K4,6),K4=48,49),(TESUM(K5,6),K5=56,57)
+     *      (TESUM(K4,6),K4=48,49),(TESUM(K5,6),K5=56,59)
       WRITE(26,1038)
- 1038 FORMAT(//,20X,'R E P O R T   3B  (ESTIMATED-OBSERVED DATA)',/,
-     *          20X,
-     *          'SUMMARIZE TRANSIT TRIPS BY MarketSegment       ',//,
-     *       1X,'Market   ','   LOCAL   ','  LOCAL  ',' EXPRESS ',
-     *          '  EXRESS  ',
-     *          ' COMMUTER  ',
-     *          ' COMMUTER ',' COMMUTER ',' COMMUTER  ',' URBAN   ',
-     *          '  URBAN   ','  URBAN   ','  URBAN    ',' TWAY    ',
-     *          '  TWAY    ','  RAPID   ','  RAPID    ','   BRT   ',
-     *          '   BRT    '/
-     *       1X,'GROUP    ','    BUS   ','     BUS   ','  BUS   ',
-     *          '   BUS     ',
-     *          '  RAIL   ',
-     *          '  RAIL   ','   RAIL     ',' RAIL    ','   RAIL    ',
-     *          '  RAIL   ','   RAIL     ',' RAIL  ','    BUS    ',
-     *          '   BUS    ','   BUS      ','  BUS   ','     BUS    ',
-     *          '  BUS   '/
-     *       1X,'         ','   WALK  ','    DRIVE  ','  WALK  ',
-     *          '   DRIVE  ',
-     *          '   WALK  ',
-     *          '    BUS   ','    PNR     ','   KNR     ','   WALK   ',
-     *          '    BUS   ','  PNR     ','  KNR     ','  WALK   ',
-     *          '   DRIVE  ','   WALK    ','  DRIVE    ','  WALK   ',
-     *          '  DRIVE    '/
-     *       1X,'---------','---------','---------','----------',
-     *          '----------',
-     *          '----------',
-     *          '---------','---------','---------','-----------',
-     *          '---------','---------','---------','-----------',
-     *          '---------','---------','----------------',
-     *          '---------','-----------')
+ 1038 FORMAT(//,20X,'R E P O R T   3B  (ESTIMATED-OBSERVED DATA)',/)
+      WRITE(26,9018)
       DO C=1,NCATS
-      WRITE(26,9005) C,(DFSUM(T,C),T=7,22),DFSUM(25,C),DFSUM(26,C)
+      WRITE(26,9005) C,(DFSUM(T,C),T=7,22),DFSUM(25,C),DFSUM(36,C),
+     *                  DFSUM(26,C),DFSUM(35,C)
       END DO
-      WRITE(26,9006) (DFSUM(T,6),T=7,22),DFSUM(25,6),DFSUM(26,6)
+      WRITE(26,9006) (DFSUM(T,6),T=7,22),DFSUM(25,6),DFSUM(36,6),
+     *                DFSUM(26,6),DFSUM(35,6)
 C
+      IF(BICYCLE) THEN
       WRITE(26,9224)
  9224 FORMAT(//,20X,'R E P O R T   1C  (O B S E R V E D  D A T A)',/,
      *          20X,
@@ -631,6 +538,7 @@ C
       END DO
       WRITE(26,9006) DFSUM(28,6),DFSUM(29,6),DFSUM(31,6),DFSUM(30,6),
      *               DFSUM(32,6),DFSUM(34,6),DFSUM(33,6)
+      END IF
       WRITE(26,9624)
  9624 FORMAT(//,20X,'R E P O R T   1D  (O B S E R V E D  D A T A)',/,
      *          20X,
@@ -734,7 +642,6 @@ C
        BUSTXFER(K,5)=BUSTXFER(K,5)+BUSTXFER(K,K1)
        IF(K.LE.2) THEN
        STATXF(K,5)=STATXF(K,5)+STATXF(K,K1)
-       RALEGR(K,5)=RALEGR(K,5)+RALEGR(K,K1)
        END IF
        END DO 
        END DO
@@ -742,21 +649,17 @@ C
      *                (BUSTXFER(2,K2),K2=1,5),
      *                (BUSTXFER(3,K2),K2=1,5),
      *                (BUSTXFER(4,K2),K2=1,5),
-     *                (BUSTXFER(5,K2),K2=1,5),
      *                (BUSTXFER(6,K2),K2=1,5),
      *                (BUSTXFER(7,K2),K2=1,5),
      *                (BUSTXFER(8,K2),K2=1,5),
      *                (BUSTXFER(9,K2),K2=1,5),
-     *                (BUSTXFER(10,K2),K2=1,5),
      *                (BUSTXFER(11,K2),K2=1,5),
      *                (BUSTXFER(12,K2),K2=1,5),
      *                (BUSTXFER(13,K2),K2=1,5),
      *                (BUSTXFER(14,K2),K2=1,5),
-     *                (BUSTXFER(15,K2),K2=1,5),
      *                (STATXF(1,K2),K2=1,5),
      *                (STATXF(2,K2),K2=1,5),
-     *                (RALEGR(1,K2),K2=1,5),
-     *                (RALEGR(2,K2),K2=1,5)
+     *                (STATXF(5,K3),K3=1,5)
  9516  FORMAT(//'       BUS TRANSFER INCIDENCE SUMMARY'/
      *          ' -----------------------------------------'/
      *          ' WALK ACCESS     0          1         2   ',
@@ -766,8 +669,7 @@ C
      *          ' LOCAL BUS  ',5(2X,F8.0)/
      *          ' EXPRESS BUS',5(2X,F8.0)/
      *          ' TRANSITWAY ',5(2X,F8.0)/
-     *          ' RAPID BUS  ',5(2X,F8.0)/
-     *          ' BRT        ',5(2X,F8.0)//
+     *          ' RAPID BUS  ',5(2X,F8.0)//
      *          ' BIKE ACCESS     0          1         2   ',
      *          '     3+       TOTAL'/
      *          ' -----------  --------  --------  --------',
@@ -775,8 +677,7 @@ C
      *          ' LOCAL BUS  ',5(2X,F8.0)/
      *          ' EXPRESS BUS',5(2X,F8.0)/
      *          ' TRANSITWAY ',5(2X,F8.0)/
-     *          ' RAPID BUS  ',5(2X,F8.0)/
-     *          ' BRT        ',5(2X,F8.0)//
+     *          ' RAPID BUS  ',5(2X,F8.0)//
      *          ' DRIVE ACCESS    0          1         2   ',
      *          '     3+       TOTAL'/
      *          ' -----------  --------  --------  --------',
@@ -784,8 +685,7 @@ C
      *          ' LOCAL BUS  ',5(2X,F8.0)/
      *          ' EXPRESS BUS',5(2X,F8.0)/
      *          ' TRANSITWAY ',5(2X,F8.0)/
-     *          ' RAPID BUS  ',5(2X,F8.0)/
-     *          ' BRT        ',5(2X,F8.0)//
+     *          ' RAPID BUS  ',5(2X,F8.0)//
      *          '    STATION LEVEL TRANSFER INCIDENCE SUMMARY'/
      *          ' -----------------------------------------'/
      *          ' ALL ACCESS      0          1         2   ',
@@ -793,15 +693,8 @@ C
      *          ' -----------  --------  --------  --------',
      *          '  --------  --------'/
      *          ' COMMUTER RL',5(2X,F8.0)/
-     *          ' URBAN RAIL ',5(2X,F8.0)//
-     *          '    RAIL EGRESS TRANSFER INCIDENCE SUMMARY'/
-     *          ' -----------------------------------------'/
-     *          ' BUS EGRESS      0          1         2   ',
-     *          '     3+      TOTAL'/
-     *          ' -----------  --------  --------  --------',
-     *          '  --------  --------'/
-     *          ' COMMUTER RL',5(2X,F8.0)/
-     *          ' URBAN RAIL ',5(2X,F8.0)/)     
+     *          ' URBAN RAIL ',5(2X,F8.0)/
+     *          ' BUS RPD TRN',5(2X,F8.0)//)   
 C----------------------------------------------------------------------
 C
 C
@@ -894,14 +787,14 @@ C
  4853 FORMAT(/10X,'Stratified Transit Constants-Market Segment ',I1/
      *        10X,'--------------------------------------------',/,
      *  1X,'  Trip       Obs     Est    Existing               New'/
-     *  1X,' Length    Percent Percent  Constant Adjustment  Constant'/
+     *  1X,' Length     Value   Value   Constant Adjustment  Constant'/
      *  1X,'---------  ------- ------- --------- ---------- ---------')
 	DO 4864 T=1,21
 	   POBS=0.0
 	   PEST=0.0
 	   IF(T.GE.MAXT) THEN
 	    IF(T.GT.MAXT) THEN
-	    PTRIP(MAXT,INC)=PTRIP(MAXT,INC)+PTRIP(T,INC)
+C     PTRIP(MAXT,INC)=PTRIP(MAXT,INC)+PTRIP(T,INC)
 	    TTRIP(MAXT,INC)=TTRIP(MAXT,INC)+TTRIP(T,INC)
 	    END IF
 	   IF(T.LT.21) GO TO 4864
@@ -1112,23 +1005,23 @@ C
       DENOM=0.0
       NCON=0.0
    	   DO 4861 INC=1,NCATS
-       POBS=POBS+OESUM(8,INC)
-       PEST=PEST+TESUM(8,INC)
- 4861  CONTINUE
+       POBS=OESUM(8,INC)
+       PEST=TESUM(8,INC)
          RCON=0.0
          IF(POBS.GT.0.0.AND.PEST.GT.0) THEN
             RCON=DLOG(POBS/PEST)
          END IF
-         ECON=KINFL
+         ECON=KINFL(INC)
          NCON=ECON+ADJFCT*RCON
          NCON=DMAX1(NCON,MINVAL)
          IF(POBS.EQ.0.0) NCON=MINVAL
-         KINFL=NCON
-         WRITE(26,4871) POBS,PEST,ECON,RCON,NCON
- 4871    FORMAT(1X,' KINFL',4X,2(1X,F7.0),1X,
+         KINFL(INC)=NCON
+         WRITE(26,4871) INC,POBS,PEST,ECON,RCON,NCON
+ 4871    FORMAT(1X,' KINFL(',I1,')',1X,2(1X,F7.0),1X,
      *                             F9.5,1X,F10.5,1X,F9.5)
-      WRITE(51,4881) KINFL
- 4881 FORMAT('KINFL=',F9.5)
+      WRITE(51,4881) INC,KINFL(INC)
+ 4881 FORMAT('KINFL(',I1,')=',F9.5)
+ 4861 CONTINUE
       END IF
 C
 C     Calculate Drive to Rapid Bus Constants
@@ -1144,23 +1037,23 @@ C
       POBS=0.0
       PEST=0.0
 	DO 4862 INC=1,NCATS
-       POBS=POBS+OESUM(22,INC)
-       PEST=PEST+TESUM(49,INC)
- 4862 CONTINUE
+       POBS=OESUM(22,INC)
+       PEST=TESUM(49,INC)
          RCON=0.0
          IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
             RCON=DLOG(POBS/PEST)
          END IF
-         ECON=KINFR
+         ECON=KINFR(INC)
          NCON=ECON+ADJFCT*RCON
          NCON=DMAX1(NCON,MINVAL)
          IF(POBS.EQ.0.0) NCON=MINVAL
-         KINFR=NCON
-         WRITE(26,4872) POBS,PEST,ECON,RCON,NCON
- 4872    FORMAT(1X,' KINFR',4X,2(1X,F7.0),1X,
+         KINFR(INC)=NCON
+         WRITE(26,4872) INC,POBS,PEST,ECON,RCON,NCON
+ 4872    FORMAT(1X,' KINFR(',I1,')',1X,2(1X,F7.0),1X,
      *                             F9.5,1X,F10.5,1X,F9.5)
-      WRITE(51,4882) KINFR
- 4882 FORMAT('KINFR=',F9.5)
+      WRITE(51,4882) INC,KINFR(INC)
+ 4882 FORMAT('KINFR(',I1,')=',F9.5)
+ 4862 CONTINUE
       END IF
 C
 C----------------------------------------------------------------------
@@ -1677,20 +1570,20 @@ C
          IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
             RCON=DLOG(POBS/PEST)
          END IF
-         ECON=KBBRT(1)
+         ECON=KBKBR(1)
          NCON=ECON+ADJFCT*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
-         KBBRT(1)=NCON
-         KBBRT(2)=NCON
-         KBBRT(3)=NCON
-         KBBRT(4)=NCON
-         KBBRT(5)=NCON
+         KBKBR(1)=NCON
+         KBKBR(2)=NCON
+         KBKBR(3)=NCON
+         KBKBR(4)=NCON
+         KBKBR(5)=NCON
          WRITE(26,4736) POBS,PEST,ECON,RCON,NCON
- 4736    FORMAT(1X,'KBBRT' ' ',4X,2(1X,F7.0),1X,
+ 4736    FORMAT(1X,'KBKBR' ' ',4X,2(1X,F7.0),1X,
      A         F9.5,1X,F10.5,1X,F9.5)
-      WRITE(51,4746) KBBRT
- 4746 FORMAT('KBBRT=',F9.5,4(',',F9.5))
+      WRITE(51,4746) KBKBR
+ 4746 FORMAT('KBKBR=',F9.5,4(',',F9.5))
       END IF
 C
 C
@@ -1972,83 +1865,34 @@ C
  5941 FORMAT('KBEXPW=',F9.5)
       END IF
 C----------------------------------------------------------------------
-C     Calculate BRT Bus Transfer Constants
+C     Calculate Walk to Rapid Bus Constant for Segment #1
 C
       IF(CCODE(21)) THEN
       WRITE(26,5411)
- 5411 FORMAT(/15X,'Walk to BRT Bus Transfer Constant',/,
-     *        15X,'---------------------------------',/,
+ 5411 FORMAT(/15X,'Walk to Rapid Bus Transfer Constant',/,
+     *        15X,'-----------------------------------',/,
      *  1X,' Market'/
      *  1X,'Segment      Obs     Est    Existing               New'/
-     *  1X,' Level     Percent Percent  Constant Adjustment  Constant'/
+     *  1X,' Level      Value   Value   Constant Adjustment  Constant'/
      *  1X,'---------  ------- ------- --------- ---------- ---------')
-         TO=0.0
-         TE=0.0
-         DENOBS=0.0
-         DENEST=0.0
-      DO 5421 INC=1,NCATS
-         TE=TE+TESUM(58,INC)
-         DENEST=DENEST+TESUM(56,INC)
- 5421 CONTINUE
-         POBS=WLKBRT
-         IF(DENEST.GT.0) THEN
-            PEST=TE/DENEST
-         ELSE
-            PEST=0.0
-         END IF
+         DO INC=1,NCATS
+         POBS=OESUM(21,INC)
+         PEST=TESUM(48,INC)
          RCON=0.0
-         IF((POBS.GT.0.0.AND.POBS.LT.1.0).AND.
-     *      (PEST.GT.0.0.AND.PEST.LT.1.0)) THEN
-            RCON=DLOG(((POBS*PEST)-POBS)/((POBS*PEST)-PEST))
+         IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+         RCON=DLOG(POBS/PEST)
          END IF
-         ECON=KBBRTW
+         ECON=KWRPD(INC)
          NCON=ECON+ADJFCT*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
-         KBBRTW=NCON
-         WRITE(26,5431) POBS,PEST,ECON,RCON,NCON
- 5431    FORMAT(1X,'KBBRTW ',3X,2(1X,F7.4),1X,
+         KWRPD(INC)=NCON
+         WRITE(26,5431) INC,POBS,PEST,ECON,RCON,NCON
+ 5431    FORMAT(1X,'KWRPD(',I1,')',2X,2(1X,F7.0),1X,
      *                     F9.5,1X,F10.5,1X,F9.5)
-      WRITE(51,5441) KBBRTW
- 5441 FORMAT('KBBRTW=',F9.5)
-      END IF
-      IF(CCODE(23)) THEN
-      WRITE(26,5481)
- 5481 FORMAT(/15X,'Drive to BRT Bus Transfer Constant',/,
-     *        15X,'------------------------------------',/,
-     *  1X,' Market'/
-     *  1X,'Segment      Obs     Est    Existing               New'/
-     *  1X,' Level     Percent Percent  Constant Adjustment  Constant'/
-     *  1X,'---------  ------- ------- --------- ---------- ---------')
-         TO=0.0
-         TE=0.0
-         DENOBS=0.0
-         DENEST=0.0
-      DO 5482 INC=1,NCATS
-         TE=TE+TESUM(61,INC)
-         DENEST=DENEST+TESUM(57,INC)
- 5482 CONTINUE
-         POBS=DRVBRT
-         IF(DENEST.GT.0) THEN
-            PEST=TE/DENEST
-         ELSE
-            PEST=0.0
-         END IF
-         RCON=0.0
-         IF((POBS.GT.0.0.AND.POBS.LT.1.0).AND.
-     *      (PEST.GT.0.0.AND.PEST.LT.1.0)) THEN
-            RCON=DLOG(((POBS*PEST)-POBS)/((POBS*PEST)-PEST))
-         END IF
-         ECON=KBBRTD
-         NCON=ECON+ADJFCT*RCON
-         IF(POBS.EQ.0.0) NCON=MINVAL
-         NCON=DMAX1(NCON,MINVAL)
-         KBBRTD=NCON
-         WRITE(26,5483) POBS,PEST,ECON,RCON,NCON
- 5483    FORMAT(1X,'KBBRTD ',3X,2(1X,F7.4),1X,
-     *                     F9.5,1X,F10.5,1X,F9.5)
-      WRITE(51,5484) KBBRTD
- 5484 FORMAT('KBBRTD=',F9.5)
+      END DO
+      WRITE(51,5441) KWRPD
+ 5441 FORMAT('KWRPD=',F9.5,4(',',F9.5))
       END IF
 C----------------------------------------------------------------------
 C     Calculate Drive Access Transitway Transfer Constants
@@ -2261,46 +2105,42 @@ C
  7736 FORMAT('KBEXPB=',F9.5)
       END IF
 C
+C
 C----------------------------------------------------------------------
-C     Calculate Bike Access BRT Transfer Constants
+C     Calculate Drive to Transitway
 C
       IF(CCODE(34)) THEN
       WRITE(26,7737)
- 7737 FORMAT(/15X,'BRT Bike Access Transfer Constant',/,
-     *        15X,'---------------------------------',/,
+ 7737 FORMAT(/15X,'Drive to Transitway',/,
      *  1X,' Market'/
+     *        15X,'------------------',/,
      *  1X,'Segment      Obs     Est    Existing               New'/
-     *  1X,' Level     Percent Percent  Constant Adjustment  Constant'/
+     *  1X,' Level      Value   Value   Constant Adjustment  Constant'/
      *  1X,'---------  ------- ------- --------- ---------- ---------')
          TO=0.0
          TE=0.0
-         DENOBS=0.0
-         DENEST=0.0
          DO INC=1,NCATS
-         TE=TE+TESUM(73,INC)
-         DENEST=DENEST+TESUM(72,INC)
+         TO=TO+OESUM(20,INC)
+         TE=TE+TESUM(20,INC)
          END DO
-         POBS=BIKBRT
-         IF(DENEST.GT.0) THEN
-            PEST=TE/DENEST
-         ELSE
-            PEST=0.0
-         END IF
          RCON=0.0
-         IF((POBS.GT.0.0.AND.POBS.LT.1.0).AND.
-     *      (PEST.GT.0.0.AND.PEST.LT.1.0)) THEN
-            RCON=DLOG(((POBS*PEST)-POBS)/((POBS*PEST)-PEST))
+         IF(TE.GT.0) THEN
+            RCON=DLOG(TO/TE)
          END IF
-         ECON=KBBRTB
+         ECON=KDWAY(1)
          NCON=ECON+ADJFCT*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
-         KBBRTB=NCON
-         WRITE(26,7738) POBS,PEST,ECON,RCON,NCON
- 7738    FORMAT(1X,'KBBRTB ',3X,2(1X,F7.4),1X,
-     *                     F9.5,1X,F10.5,1X,F9.5)
-      WRITE(51,7739) KBBRTB
- 7739 FORMAT('KBBRTB=',F9.5)
+         KDWAY(1)=NCON
+         KDWAY(2)=NCON
+         KDWAY(3)=NCON
+         KDWAY(4)=NCON
+         KDWAY(5)=NCON
+         WRITE(26,7738) TO,TE,ECON,RCON,NCON
+ 7738    FORMAT(1X,'KDWAY ',4X,2(1X,F7.0),1X,
+     *         F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,7739) KDWAY
+ 7739 FORMAT('KDWAY=',F9.5,4(',',F9.5))
       END IF
 C----------------------------------------------------------------------
 C     Calculate Overall CBD Constant for Transit
@@ -2312,12 +2152,23 @@ C
      *  1X,'             Obs     Est    Existing               New'/
      *  1X,'            Value   Value   Constant Adjustment  Constant'/
      *  1X,'---------  ------- ------- --------- ---------- ---------')
+         IF(CCODE(74)) THEN
+         POBS=OBCBDTR-OBCBDCR
+         PEST=CBDTRAN-CBDTRCR
+         ELSE
          POBS=OBCBDTR
          PEST=CBDTRAN
+         END IF
+         IF(PEST.GT.0) THEN
          RCON=LOG(POBS/PEST)
-         ECON=CCBD(1)
+         ELSE
+         RCON=1.5
+         END IF
+         IF(POBS.EQ.0) RCON=0.0
+         ECON=CCBD(2)
          NCON=ECON+ADJFCT*RCON
-         CCBD(1)=NCON
+         IF(NCON.LT.0.0) NCON=0.0
+         IF(.NOT.CCODE(74)) CCBD(1)=NCON
          CCBD(2)=NCON
          CCBD(3)=NCON
          CCBD(4)=NCON
@@ -2547,7 +2398,7 @@ C
          KWWAY(4)=NCON
          KWWAY(5)=NCON
          WRITE(26,4815) TO,TE,ECON,RCON,NCON
- 4815    FORMAT(1X,'KWWAY' ' ',4X,2(1X,F7.0),1X,
+ 4815    FORMAT(1X,'KWWAY    ',4X,2(1X,F7.0),1X,
      *         F9.5,1X,F10.5,1X,F9.5)
       WRITE(51,4816) KWWAY
  4816 FORMAT('KWWAY=',F9.5,4(',',F9.5))
@@ -2739,10 +2590,10 @@ C
      *              KBUR(1),KBRPDW,KBTWYW,KBEXPW,KINFL,
      *              KINFR,KBRPDB,KBRT(1),KRBUS(1),KBBRTW,
      *              KBRPDD,KBBRTD,CCBD(1),KBTWYD,KBEXPD,KBBUS(1),
-     *              KBRPD(1),KBWAY(1),KBEXP(1),KBBRT(1),
+     *              KBRPD(1),KBWAY(1),KBEXP(1),KBKBR(1),
      *              KBTWYB,KBEXPB,KBBRTB,KINTRAWK,KINTRABK,KPUR(1),
      *              KWCR(1)
-  906 FORMAT(I3,90(',',F9.5))
+  906 FORMAT(I3,98(',',F9.5))
       WRITE(53,907) ITER
   907 FORMAT('ITER=,',I3)
       DO IMO=1,21
@@ -2775,6 +2626,7 @@ C
          END IF
          ECON=COEFF(31)
          IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -2811,6 +2663,7 @@ C
          END IF
          ECON=COEFF(32)
          IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -2845,6 +2698,7 @@ C
          END IF
          ECON=COEFF(33)
          IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -2878,6 +2732,7 @@ C
          END IF
          ECON=COEFF(34)
          IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -2911,6 +2766,7 @@ C
          END IF
          ECON=COEFF(35)
          IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -2945,6 +2801,7 @@ C
          END IF
          ECON=COEFF(36)
          IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -2978,6 +2835,7 @@ C
          END IF
          ECON=COEFF(37)
          IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -3011,6 +2869,7 @@ C
          END IF
          ECON=COEFF(38)
          IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -3044,7 +2903,7 @@ C
             RCON=DLOG(((POBS*PEST)-POBS)/((POBS*PEST)-PEST))
          END IF
          ECON=COEFF(39)
-         IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -3078,6 +2937,7 @@ C
          END IF
          ECON=COEFF(40)
          IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -3111,6 +2971,7 @@ C
          END IF
          ECON=COEFF(41)
          IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -3145,6 +3006,7 @@ C
          END IF
          ECON=COEFF(42)
          IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
+         IF(RCON.GT.0) RCON=0.0
          NCON=ECON+ADJFCT2*RCON
          IF(POBS.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
@@ -3265,8 +3127,8 @@ C
      *  1X,'  Name     Percent Percent  Constant Adjustment  Constant'/
      *  1X,'---------  ------- ------- --------- ---------- ---------')
          POBS=CBUSEGR
-         DENOM=RALEGR(1,5)+RALEGR(1,6)
-         PEST=RALEGR(1,5)
+C        DENOM=RALEGR(1,5)+RALEGR(1,6)
+C        PEST=RALEGR(1,5)
          IF(DENOM.GT.0) THEN
          PEST=PEST/DENOM
          ELSE
@@ -3298,8 +3160,8 @@ C
      *  1X,'  Name     Percent Percent  Constant Adjustment  Constant'/
      *  1X,'---------  ------- ------- --------- ---------- ---------')
          POBS=UBUSEGR
-         DENOM=RALEGR(2,5)+RALEGR(2,6)
-         PEST=RALEGR(2,5)
+C        DENOM=RALEGR(2,5)+RALEGR(2,6)
+C        PEST=RALEGR(2,5)
          IF(DENOM.GT.0) THEN
          PEST=PEST/DENOM
          ELSE
@@ -3362,6 +3224,419 @@ C
          WRITE(26,7431) POBS,PEST,ECON,RCON,NCON
       WRITE(51,7442) KWUR(1)
       END IF
+C
+C----------------------------------------------------------------------
+C     Calculate Walk to BRT Constant - Market Segment #1
+C
+      IF(CCODE(66)) THEN
+      WRITE(26,7413)
+ 7413 FORMAT(/15X,'Walk to BRT Constants',/,
+     *        15X,'---------------------',/,
+     *  1X,' Market'/
+     *  1X,'Segment      Obs     Est    Existing               New'/
+     *  1X,' Level      Value   Value   Constant Adjustment  Constant'/
+     *  1X,'---------  ------- ------- --------- ---------- ---------')
+      POBS=0.0
+      PEST=0.0
+C     DO INC=1,NCATS
+C        POBS=POBS+OESUM(25,INC)
+C        PEST=PEST+TESUM(56,INC)
+C     END DO
+         POBS=OESUM(25,1)
+         PEST=TESUM(56,1)
+         RCON=0.0
+         IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+            RCON=DLOG(POBS/PEST)
+         END IF
+         ECON=KWBR(1)
+         NCON=ECON+ADJFCT*RCON
+         IF(POBS.EQ.0.0) NCON=MINVAL
+         NCON=DMAX1(NCON,MINVAL)
+         KWBR(1)=NCON
+         WRITE(26,7433) POBS,PEST,ECON,RCON,NCON
+ 7433    FORMAT(1X,'KWBR(1)',3X,2(1X,F7.0),1X,
+     *                      F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,7443) KWBR(1)
+ 7443 FORMAT('KWBR=',F9.5)
+      END IF
+C
+C----------------------------------------------------------------------
+C     Calculate Fixed Guideway Mode-to-Mode Transfer Constants
+C
+      IF(CCODE(67)) THEN
+      WRITE(26,7414)
+ 7414 FORMAT(/15X,'Fixed Guideway Mode-to-Mode Transfers',/,
+     *        15X,'-------------------------------------',/,
+     *  1X,'                  Obs     Est    Existing               ',
+     *     'New'/
+     *  1X,'    Name         Value   Value   Constant Adjustment',
+     *     '  Constant'/
+     *  1X,'--------------  ------- ------- --------- ----------',
+     *     ' ---------')
+      DO K1=1,5
+      DO K2=1,5
+      IF(STAOBS(K1,K2).LE.0.0) CYCLE
+         POBS=STAOBS(K1,K2)
+         PEST=STAVOL(K1,K2)
+         RCON=0.0
+         IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+            RCON=DLOG(POBS/PEST)
+         END IF
+         ECON=KSTAMODE(K1,K2)
+         NCON=ECON+ADJFCT*RCON
+         IF(POBS.EQ.0.0) NCON=MINVAL
+         NCON=DMAX1(NCON,MINVAL)
+C        IF(RCON.GT.0) RCON=0.0
+         KSTAMODE(K1,K2)=NCON
+         WRITE(26,7434) K1,K2,POBS,PEST,ECON,RCON,NCON
+ 7434    FORMAT(1X,'KSTAMODE(',I1,',',I1')=',2(1X,F7.0),1X,
+     *                      F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,7444) K1,K2,KSTAMODE(K1,K2)
+ 7444 FORMAT('KSTAMODE(',I1,',',I1,')=',F9.5)
+      END DO
+      END DO
+      END IF
+C
+C----------------------------------------------------------------------
+C     Calculate Rapid Bus Constants - Market Segment #1
+C
+      IF(CCODE(68)) THEN
+      WRITE(26,5710)
+         POBS=0.0
+         PEST=0.0
+         POBS=OESUM(21,1)+OESUM(22,1)+OESUM(29,1)
+         PEST=TESUM(48,1)+TESUM(49,1)+TESUM(66,1)
+         RCON=0.0
+         IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+            RCON=DLOG(POBS/PEST)
+         END IF
+         ECON=KRBUS(1)
+         NCON=ECON+ADJFCT*RCON
+         IF(POBS.EQ.0.0) NCON=MINVAL
+         NCON=DMAX1(NCON,MINVAL)
+         KRBUS(1)=NCON
+         WRITE(26,5975) POBS,PEST,ECON,RCON,NCON
+ 5975    FORMAT(1X,'KRBUS(1)',2X,2(1X,F7.0),1X,
+     *                F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,5971) KRBUS(1)
+ 5971 FORMAT('KRBUS(1)=',F9.5)
+      END IF
+C
+C----------------------------------------------------------------------
+C     Calculate Commuter Rail Constants - Segment #1
+C
+      IF(CCODE(69)) THEN
+      WRITE(26,4610)
+         POBS=0.0
+         PEST=0.0
+      POBS=OESUM(11,1)+OESUM(12,1)+OESUM(13,1)+OESUM(14,1)+
+     *         OESUM(33,1)
+      PEST=TESUM(11,1)+TESUM(12,1)+TESUM(13,1)+TESUM(14,1)+
+     *         TESUM(74,1)
+         RCON=0.0
+         IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+            RCON=DLOG(POBS/PEST)
+         END IF
+         ECON=KCR(1)
+         NCON=ECON+ADJFCT*RCON
+         NCON=DMAX1(NCON,MINVAL)
+         IF(POBS.EQ.0.0) NCON=MINVAL
+         KCR(1)=NCON
+         WRITE(26,4639) POBS,PEST,ECON,RCON,NCON
+ 4639    FORMAT(1X,'KCR(1)  ',5X,2(1X,F7.0),1X,
+     *                F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,4649) KCR(1)
+ 4649 FORMAT('KCR(1)=',F9.5)
+      END IF
+C----------------------------------------------------------------------
+C     Calculate Urban Rail Constants - Segment #1
+C
+      IF(CCODE(70)) THEN
+      WRITE(26,5610)
+         POBS=0.0
+         PEST=0.0
+      POBS=OESUM(15,1)+OESUM(16,1)+OESUM(17,1)+OESUM(18,1)+
+     *         OESUM(34,1)
+      PEST=TESUM(15,1)+TESUM(16,1)+TESUM(17,1)+TESUM(18,1)+
+     *         TESUM(75,1)
+         RCON=0.0
+         IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+            RCON=DLOG(POBS/PEST)
+         END IF
+         ECON=KUR(1)
+         NCON=ECON+ADJFCT*RCON
+         NCON=DMAX1(NCON,MINVAL)
+         IF(POBS.EQ.0.0) NCON=MINVAL
+         KUR(1)=NCON
+         WRITE(26,5639) POBS,PEST,ECON,RCON,NCON
+ 5639    FORMAT(1X,'KUR(1)  ',5X,2(1X,F7.0),1X,
+     A      F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,5649) KUR(1)
+ 5649 FORMAT('KUR(1)=',F9.5)
+      END IF
+C----------------------------------------------------------------------
+C     Calculate BRT Station Egress Bus Constant
+C
+      IF(CCODE(71)) THEN
+      WRITE(26,7415)
+ 7415 FORMAT(/15X,'BRT Station Egress Bus Constant',/,
+     *        15X,'-------------------------------',/,
+     *  1X,'                  Obs     Est    Existing               ',
+     *     'New'/
+     *  1X,'    Name         Value   Value   Constant Adjustment',
+     *     '  Constant'/
+     *  1X,'--------------  ------- ------- --------- ----------',
+     *     ' ---------')
+         POBS=OBRTEGR
+         PEST=TBRTEGR
+         RCON=0.0
+         IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+            RCON=DLOG(POBS/PEST)
+         END IF
+         ECON=KBRTEGR
+         NCON=ECON+ADJFCT*RCON
+         IF(POBS.EQ.0.0) NCON=MINVAL
+         NCON=DMAX1(NCON,MINVAL)
+         IF(RCON.GT.0) RCON=0.0
+         KBRTEGR=NCON
+         WRITE(26,7435) POBS,PEST,ECON,RCON,NCON
+ 7435    FORMAT(1X,'KBRTEGR ',7X,2(1X,F7.3),1X,
+     *                      F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,7445) KBRTEGR
+ 7445 FORMAT('KBRTEGR=',F9.5)
+      END IF
+C----------------------------------------------------------------------
+C     Calculate KNR to BRT Constants
+C
+      IF(CCODE(72)) THEN
+      WRITE(26,4317)
+ 4317 FORMAT(/15X,'KNR to BRT Constants',/,
+     *        15X,'---------------------',/,
+     *  1X,' Market'/
+     *  1X,'Segment      Obs     Est    Existing               New'/
+     *  1X,' Level       Value   Value   Constant Adjustment  Constant'/
+     *  1X,'---------  ------- ------- --------- ---------- ---------')
+      POBS=0.0
+      PEST=0.0
+      DO INC=1,NCATS
+         POBS=POBS+OESUM(35,INC)
+         PEST=PEST+TESUM(59,INC)
+      END DO      
+         RCON=0.0
+         IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+            RCON=DLOG(POBS/PEST)
+         END IF
+         ECON=KKBR(1)
+         NCON=ECON+ADJFCT*RCON
+         IF(POBS.EQ.0.0) NCON=MINVAL
+         NCON=DMAX1(NCON,MINVAL)
+         KKBR(1)=NCON
+         KKBR(2)=NCON
+         KKBR(3)=NCON
+         KKBR(4)=NCON
+         KKBR(5)=NCON
+         WRITE(26,4319) POBS,PEST,ECON,RCON,NCON
+ 4319    FORMAT(1X,'KKBR   ',3X,2(1X,F7.0),1X,
+     *                             F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,4318) KKBR
+ 4318 FORMAT('KKBR=',F9.5,4(',',F9.5))
+      END IF
+C
+C
+C----------------------------------------------------------------------
+C     Calculate Bus to BRT Constants
+C
+      IF(CCODE(73)) THEN
+      WRITE(26,4119)
+ 4119 FORMAT(/15X,'Bus to BRT Constants',/,
+     *        15X,'--------------------',/,
+     *  1X,' Market'/
+     *  1X,'Segment      Obs     Est    Existing               New'/
+     *  1X,' Level      Value   Value   Constant Adjustment  Constant'/
+     *  1X,'---------  ------- ------- --------- ---------- ---------')
+      POBS=0.0
+      PEST=0.0
+      DO INC=1,NCATS
+         POBS=POBS+OESUM(36,INC)
+         PEST=PEST+TESUM(57,INC)
+      END DO      
+         RCON=0.0
+         IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+            RCON=DLOG(POBS/PEST)
+         END IF
+         ECON=KBBR(1)
+         NCON=ECON+ADJFCT*RCON
+         IF(POBS.EQ.0.0) NCON=MINVAL
+         NCON=DMAX1(NCON,MINVAL)
+         KBBR(1)=NCON
+         KBBR(2)=NCON
+         KBBR(3)=NCON
+         KBBR(4)=NCON
+         KBBR(5)=NCON
+         WRITE(26,4139) POBS,PEST,ECON,RCON,NCON
+ 4139    FORMAT(1X,'KBBR   ',3X,2(1X,F7.0),1X,
+     *                             F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,4149) KBBR
+ 4149 FORMAT('KBBR=',F9.5,4(',',F9.5))
+      END IF
+C----------------------------------------------------------------------
+C     Calculate Commuter Rail CBD Constant for Transit
+C
+      IF(CCODE(74)) THEN
+      WRITE(26,5715)
+ 5715 FORMAT(/15X,'Commuter Rail CBD Constant for Transit',/,
+     *        15X,'--------------------------------------',/,
+     *  1X,'             Obs     Est    Existing               New'/
+     *  1X,'            Value   Value   Constant Adjustment  Constant'/
+     *  1X,'---------  ------- ------- --------- ---------- ---------')
+         POBS=OBCBDCR
+         PEST=CBDTRCR
+         RCON=LOG(POBS/PEST)
+         ECON=CCBD(1)
+         NCON=ECON+ADJFCT*RCON
+         IF(NCON.LT.0.0) NCON=0.0
+         CCBD(1)=NCON
+         WRITE(26,5735) POBS,PEST,ECON,RCON,NCON
+ 5735    FORMAT(1X,'CCBD(1)',3X,2(1X,F7.0),1X,
+     A               F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,5743) CCBD(1)
+      END IF
+C
+C----------------------------------------------------------------------
+C     Calculate Urban Rail Constants - Segments #2 & #3
+C
+      IF(CCODE(75)) THEN
+      WRITE(26,5610)
+         POBS=0.0
+         PEST=0.0
+      DO INC=2,NCATS
+      POBS=POBS+OESUM(15,INC)+OESUM(16,INC)+OESUM(17,INC)+OESUM(18,INC)+
+     *         OESUM(34,INC)
+      PEST=PEST+TESUM(15,INC)+TESUM(16,INC)+TESUM(17,INC)+TESUM(18,INC)+
+     *         TESUM(75,INC)
+      END DO
+         RCON=0.0
+         IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+            RCON=DLOG(POBS/PEST)
+         END IF
+         ECON=KUR(2)
+         NCON=ECON+ADJFCT*RCON
+         NCON=DMAX1(NCON,MINVAL)
+         IF(POBS.EQ.0.0) NCON=MINVAL
+         KUR(2)=NCON
+         KUR(3)=NCON
+         KUR(4)=NCON
+         KUR(5)=NCON
+         WRITE(26,5631) POBS,PEST,ECON,RCON,NCON
+ 5631    FORMAT(1X,'KUR(2+)',3X,2(1X,F7.0),1X,
+     A      F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,5641) (KUR(K),K=2,NCATS)
+ 5641 FORMAT('KUR(2)=',F9.5,3(',',F9.5))
+      END IF
+C
+C---------------------------------------------------------------------
+C     Calculate Fixed Guideway Bike Egress Constants
+C
+      IF(CCODE(76)) THEN
+      WRITE(26,5716)
+ 5716 FORMAT(/15X,'Fixed Guideway Bike Egress Constants',/,
+     *        15X,'------------------------------------',/,
+     *  1X,'                 Obs     Est    Existing               ',
+     *        'New'/
+     *  1X,'    Mode        Value   Value   Constant Adjustment  ',
+     *     'Constant'/
+     *  1X,'-------------  ------- ------- --------- ---------- ',
+     *     '---------')
+      DO IMODE=1,5
+      IF(IMODE.EQ.3.OR.IMODE.EQ.4) CYCLE
+      POBS=OBS_BIKE_EGR(IMODE)
+      PEST=0.0
+      DO K=1,MAX_STATIONS
+      IF(STANUM(K).NE.IMODE) CYCLE
+      PEST=PEST+STASUM2(K,3)
+      END DO
+      RCON=0.0
+      IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+      RCON=DLOG(POBS/PEST)
+      END IF
+      ECON=EGRBIKE(IMODE)
+      NCON=ECON+ADJFCT*RCON
+      NCON=DMAX1(NCON,MINVAL)
+      IF(POBS.EQ.0.0) NCON=MINVAL      
+      EGRBIKE(IMODE)=NCON
+      WRITE(26,5632) NAME(IMODE),POBS,PEST,ECON,RCON,NCON
+ 5632 FORMAT(1X,A13,2X,2(1X,F7.0),1X,
+     A      F9.5,1X,F10.5,1X,F9.5)
+      END DO
+      WRITE(51,5642) EGRBIKE
+ 5642 FORMAT('EGRBIKE=',F9.5,4(',',F9.5))
+      END IF
+C
+C----------------------------------------------------------------------
+C     Calculate Walk to BRT Constant - Market Segment #1
+C
+      IF(CCODE(77)) THEN
+      WRITE(26,7413)
+      POBS=0.0
+      PEST=0.0
+      DO INC=1,NCATS
+      POBS=OESUM(25,INC)
+      PEST=TESUM(56,INC)
+      RCON=0.0
+      IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+      RCON=DLOG(POBS/PEST)
+      END IF
+      ECON=KWBR(INC)
+      NCON=ECON+ADJFCT*RCON
+      IF(POBS.EQ.0.0) NCON=MINVAL
+      NCON=DMAX1(NCON,MINVAL)
+      KWBR(INC)=NCON
+      WRITE(26,7436) INC,POBS,PEST,ECON,RCON,NCON
+ 7436 FORMAT(1X,'KWBR(',I1,')',3X,2(1X,F7.0),1X,
+     *                      F9.5,1X,F10.5,1X,F9.5)
+      END DO
+      WRITE(51,7446) KWBR
+ 7446 FORMAT('KWBR=',F9.5,4(',',F9.5))
+      END IF
+C
+C
+C----------------------------------------------------------------------
+C     Calculate Walk to Express Bus
+C
+      IF(CCODE(78)) THEN
+      WRITE(26,4919)
+ 4919 FORMAT(/15X,'Walk to Express Bus',/,
+     *  1X,' Market'/
+     *        15X,'-------------------',/,
+     *  1X,'Segment      Obs     Est    Existing               New'/
+     *  1X,' Level      Value   Value   Constant Adjustment  Constant'/
+     *  1X,'---------  ------- ------- --------- ---------- ---------')
+         TO=0.0
+         TE=0.0
+         DO INC=1,NCATS
+         TO=TO+OESUM(9,INC)
+         TE=TE+TESUM(9,INC)
+         END DO
+         RCON=0.0
+         IF(TE.GT.0) THEN
+            RCON=DLOG(TO/TE)
+         END IF
+         ECON=KWEXP(1)
+         NCON=ECON+ADJFCT*RCON
+         IF(POBS.EQ.0.0) NCON=MINVAL
+         NCON=DMAX1(NCON,MINVAL)
+         KWEXP(1)=NCON
+         KWEXP(2)=NCON
+         KWEXP(3)=NCON
+         KWEXP(4)=NCON
+         KWEXP(5)=NCON
+         WRITE(26,4920) TO,TE,ECON,RCON,NCON
+ 4920    FORMAT(1X,'KWEXP' ' ',4X,2(1X,F7.0),1X,
+     *         F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,4921) KWEXP
+ 4921 FORMAT('KWEXP=',F9.5,4(',',F9.5))
+      END IF
+C
 C
 C----------------------------------------------------------------------
 C End of constant adjustments

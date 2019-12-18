@@ -1,8 +1,8 @@
 C-------------------------------------------------------------------
 C        EGRESS STATION --> DESTINATION ZONE SELECTION SUBROUTINE
 C-------------------------------------------------------------------
-      SUBROUTINE EGRSTA(JZ,STA,STASTA,STAZNE,DSTA,IMODE,STAZONE,
-     *                  STAEGR,PRINT)
+      SUBROUTINE EGRSTA2(JZ,STA,STASTA,STAZNE,DSTA,IMODE,STAZONE,
+     *                   STAEGR)
        INCLUDE 'stadat.com'
        INCLUDE 'param.com'
        include 'mtamcpar.inc'
@@ -21,18 +21,17 @@ C-------------------------------------------------------------------
       REAL*4        LHIVTJ,INVEHJ,WAIT1J,WAIT2J,
      *               TRANSFJ,FAREJ,WALKACCJ,
      *               WALKEGRJ,WALKTFRJ,SELUTLJ,STAUTLJ
-      REAL*4        DISTEGR,BIKESHAR
+      REAL*4        DISTEGR
       REAL*4        LUNRVAL,NUNRVAL,LCRDVAL,NCAPVAL
       REAL*4        LUNRVALJ,NUNRVALJ,LCRDVALJ,NCAPVALJ
       REAL*4        EGRUTIL
       CHARACTER*13  NAME(6)
-      LOGICAL       PRINT
       DATA          NAME/'Commuter Rail',
      *                   'Urban Rail   ',
      *                   'Express Bus  ',
      *                   'Transitway   ',
      *                   'BRT          ',
-     *                   'CR UR BRT    '/
+     *                   'CR/UR/BRT    '/
       DDIST=-99999.9
       DSTA=0
       IC=STA-MAX_IZONES
@@ -44,7 +43,8 @@ C
       DO 100 DC=1,MAX_STATIONS
       DS=DC+MAX_IZONES
       IF(DC.EQ.IC) GOTO 100
-      IF(STANUM(DC).NE.IMODE) GOTO 100
+      IF(STANUM(DC).EQ.IMODE) GOTO 100
+      IF(STANUM(DC).EQ.3.OR.STANUM(DC).EQ.4) GOTO 100
       IF(STADATA(DC,6).LE.0.0) GOTO 100
       IF(.NOT.TRNEGR) THEN
       IF(STASTA(1,IC,DC).EQ.0.OR.
@@ -60,7 +60,7 @@ C
       UTIL=STASTA(1,IC,DC)+STAZNE(1,DC,JZ)+EGRUTIL
       IF(TRNEGR) UTIL=STASTA(1,IC,DC)+STAEGR(3,DC,JZ)
 C.............................................................
-      IF(SDETAIL.AND.PRINT) THEN
+      IF(SDETAIL) THEN
       IF(.NOT.TRNEGR) THEN
       WRITE(26,9001) DS,STANAME(DC),STAIND(DC,JZ),UTIL,STASTA(1,IC,DC),
      *               STAZNE(1,DC,JZ),EGRUTIL,DDIST,DSTA
@@ -88,7 +88,7 @@ C..............................................................
       IF(DC.LT.0) DC=MAX_STATIONS
   150 CONTINUE
 C....................................................................
-      IF(DEBUG.AND.(JOI(JZ)).AND.(PRINT)) THEN
+      IF(DEBUG.AND.(JOI(JZ))) THEN
       DC=DSTA-MAX_IZONES
       IF(DC.GT.0) THEN
 C 
@@ -98,7 +98,7 @@ C
   200 READ(31,END=210) SMODE,SIC,SDC,WAIT1,WAIT2,
      *                TRANSF,FARE,INVEH,WALKTFR,
      *                STAUTL,LUNRVAL,NUNRVAL,LCRDVAL,NCAPVAL
-      IF(SMODE.EQ.IMODE.AND.STA.EQ.SIC.AND.DSTA.EQ.SDC) GO TO 250
+      IF(SMODE.EQ.6.AND.STA.EQ.SIC.AND.DSTA.EQ.SDC) GO TO 250
       GO TO 200
   210 WRITE(26,9027) IMODE,STA,DSTA
  9027 FORMAT(//' NO STA-STA MATCH FOR IMODE=',I1,' STA=',I4,
@@ -108,7 +108,10 @@ C
       WRITE(26,9029) SIC,SDC,WAIT1,WAIT2,
      *                TRANSF,FARE,INVEH,WALKTFR,
      *                LUNRVAL,NUNRVAL,LCRDVAL,NCAPVAL,STAUTL
- 9029 FORMAT(/1X,'STATION --> STATION UTILITY COMPUTATIONS'/
+ 9029 FORMAT(/1X,'****************************'/
+     *       1X,'* MULTIPLE PATH EVALUATION *'/
+     *       1X,'****************************'//
+     *       1X,'STATION --> STATION UTILITY COMPUTATIONS'/
      *       1X,'----------------------------------------'//
      *       1X,'ORIGIN            STATION=',I8/
      *       1X,'DESTINATION       STATION=',I8/
@@ -143,7 +146,7 @@ C
      *               WALKEGRJ,WALKTFRJ,STAUTLJ,
      *               INVEHL,INVEHR,INVEHE,INVEHT,
      *               LUNRVALJ,NUNRVALJ,LCRDVALJ,NCAPVALJ
-      IF(SMODE.EQ.IMODE.AND.DSTA.EQ.SIC.AND.SJZ.EQ.JZ) GO TO 350
+      IF(DSTA.EQ.SIC.AND.SJZ.EQ.JZ) GO TO 350
       GO TO 300
   310 WRITE(26,9028) IMODE,DSTA,JZ
  9028 FORMAT(//' NO STA-ZNE MATCH FOR IMODE=',I1,' DSTA=',I4,
@@ -179,26 +182,27 @@ C
      *       1X,'STOP CAPACITY      TIME  =',F8.2/
      *       1X,'UTILITY VALUE            =',F10.5/)
       ELSE
-      BIKESHAR=1.0-STAEGR(1,DC,JZ)-STAEGR(2,DC,JZ)
       WRITE(26,9031) (DC+MAX_IZONES),JZ,
      *               STAEGR(3,DC,JZ),STAEGR(1,DC,JZ),
-     *               STAEGR(2,DC,JZ),BIKESHAR
+     *               STAEGR(2,DC,JZ)
  9031 FORMAT(1X,'DESTINATION STATION --> EGRESS ZONE COMPUTATIONS'/
      *       1X,'------------------------------------------------'//
      *       1X,'DESTINATION       STATION=',I8/
      *       1X,'EGRESS            ZONE   =',I8/
      *       1X,'LOGSUM            VALUE  =',F10.5/
      *       1X,'WALK EGRESS       SHARE  =',F10.5/
-     *       1X,'BUS  EGRESS       SHARE  =',F10.5/
-     *       1X,'BIKE EGRESS       SHARE  =',F10.5/)
-      END IF 
+     *       1X,'BUS  EGRESS       SHARE  =',F10.5/)
+      END IF      
       ELSE                                                              
-      WRITE(26,9026) NAME(IMODE),STA,JZ,DSTA                                        
- 9026 FORMAT(/1X,'EGRESS STATION SELECTION -- ',A13/                            
+      WRITE(26,9026) NAME(6),STA,JZ                                       
+ 9026 FORMAT(/1X,'****************************'/
+     *       1X,'* MULTIPLE PATH EVALUATION *'/
+     *       1X,'****************************'//
+     *       1X,'EGRESS STATION SELECTION -- ',A13/                            
      *       1X,'------------------------'/                             
      *       1X,'ACCESS STATION    =',I10/                              
      *       1X,'DESTINATION ZONE  =',I10/                              
-     *       1X,'DEST   STATION    =',I10)                              
+     *       1X,'--> NO PATH AVAILABLE <--'/)                              
       ENDIF                                                             
       ENDIF
 C.....................................................................

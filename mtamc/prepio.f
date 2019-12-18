@@ -24,8 +24,9 @@ c
       INQUIRE (FILE=filename,EXIST=EXISTS)
       IF(.NOT.EXISTS) THEN
       WRITE(26,9015) filename,fno
+      WRITE(*,9015) filename,fno
  9015 FORMAT(//1X,'PREPIO 9015 (W) INPUT FILE NAMED=',A80,
-     *       ' DOES NOT EXIST FOR FILE NO=',I2/)
+     *       ' DOES NOT EXIST FOR FILE NO=',I3/)
       STOP 8
       ELSE     
 	    open(unit=fno,file=filename,

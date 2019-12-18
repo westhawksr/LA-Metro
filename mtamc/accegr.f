@@ -8,12 +8,15 @@ C-------------------------------------------------
       INCLUDE 'mtamcpar.inc'
       INTEGER*4     COUNT,T
       REAL*8        TOTAL,TSUM(5)
+      COUNT=0
       CALL URBREAD(FNHBPKHBW,COUNT,1)
       CALL URBREAD(FNHBPKHBO,COUNT,2)
       CALL URBREAD(FNHBPKHBU,COUNT,3)
       CALL URBREAD(FNHBOPHBW,COUNT,4)
       CALL URBREAD(FNHBOPHBO,COUNT,5)
       CALL URBREAD(FNHBOPHBU,COUNT,6)
+      CALL URBREAD(FNHBPKHBS,COUNT,7)
+      CALL URBREAD(FNHBOPHBS,COUNT,8)
 C 
 C     SUMMARIZE STATION LEVEL INPUT
 C
@@ -66,12 +69,13 @@ C-------------------------------------------------
       INCLUDE 'stadat.com'
       INCLUDE 'mtamcpar.inc'
       INTEGER*4     COUNT,STA,ZONE,INDEX,SC
-      REAL*4        WALK,BUS,PNR,KNR,CR,TOTAL,DIST
+      REAL*4        WALK,BUS,PNR,KNR,CR,TOTAL,DIST,BIKE
       LOGICAL       EXISTS
       CHARACTER*80  HEADER,FILENAME
-      CHARACTER*9   NFILES(6)
+      CHARACTER*9   NFILES(8)
       DATA NFILES/  'FNHBPKHBW','FNHBPKHBO','FNHBPKHBU',
-     *              'FNHBOPHBW','FNHBOPHBO','FNHBOPHBU'/   
+     *              'FNHBOPHBW','FNHBOPHBO','FNHBOPHBU',
+     *              'FNHBPKHBS','FNHBOPHBS'/  
 C
 C.....CHECK FILE AVAILABILITY
 C
@@ -93,11 +97,13 @@ C
       READ(13,*,ERR=9100) HEADER
       IF(DEBUG) WRITE(26,8005) FILENAME
  8005 FORMAT(//' ACCESS VOLUMES FOR FILE ',A40/60('-')/)
-    1 READ(13,*,ERR=9101,END=10) STA,WALK,BUS,PNR,KNR,CR,TOTAL,ZONE,DIST
+    1 READ(13,*,ERR=9101,END=10) STA,WALK,BIKE,BUS,PNR,KNR,CR,TOTAL,
+     *                           ZONE,DIST
       IF(STA.EQ.9999) GO TO 100
 C.........................................................................
-      IF(DEBUG) WRITE(26,8001) STA,WALK,BUS,PNR,KNR,CR,TOTAL,ZONE,DIST
- 8001 FORMAT(' STA=',I4,' WALK=',F7.1,' BUS=',F7.1,' PNR=',F7.1,
+      IF(DEBUG) WRITE(26,8001) STA,WALK,BIKE,BUS,PNR,KNR,CR,TOTAL,ZONE,DIST
+ 8001 FORMAT(' STA=',I4,' WALK=',F7.1,' BIKE=',F7.1,' BUS=',F7.1,
+     *       ' PNR=',F7.1,
      *       ' KNR=',F7.1,' CR=',F7.1,' TOTAL=',F8.1,' ZONE=',I4,
      *       ' DISTANCE=',F6.2)
 C.........................................................................
@@ -117,9 +123,9 @@ C.........................................................................
 C.....STORE DATA
       SC=STA-MAX_IZONES
       IF(INDEX.EQ.1.OR.INDEX.EQ.4) THEN
-      STANHB(SC,1)=STANHB(SC,1)+WALK+BUS+PNR+KNR
+      STANHB(SC,1)=STANHB(SC,1)+WALK+BUS+PNR+KNR+BIKE
       ELSE
-      STANHB(SC,2)=STANHB(SC,2)+WALK+BUS+PNR+KNR
+      STANHB(SC,2)=STANHB(SC,2)+WALK+BUS+PNR+KNR+BIKE
       END IF
       IF(INDEX.EQ.1) ZNENHB(SC)=ZONE
       GO TO 1
@@ -148,14 +154,18 @@ C
       IF(DEBUG) WRITE(26,8105) FILENAME
  8105 FORMAT(//' EGRESS VOLUMES FOR FILE ',A40/60('-')/)      
     2 READ(13,*,ERR=9201,END=20) STA,WALK1,BUS1,CR1,TOT1,WALK2,
-     *  BUS2,CR2,TOT2,WALK3,BUS3,CR3,TOT3
+     *  BUS2,CR2,TOT2,WALK3,BUS3,CR3,TOT3,WALK4,
+     *  BUS4,CR4,TOT4,WALK5,BUS5,CR5,TOT5
 C.........................................................................
       IF(DEBUG) WRITE(26,8101) STA,WALK1,BUS1,CR1,TOT1,WALK2,
-     *  BUS2,CR2,TOT2,WALK3,BUS3,CR3,TOT3
+     *  BUS2,CR2,TOT2,WALK3,BUS3,CR3,TOT3,WALK4,
+     *  BUS4,CR4,TOT4,WALK5,BUS5,CR5,TOT5
  8101 FORMAT(' STA=',I4,' WALK1=',F7.1,' BUS1=',F7.1,' CR1=',F7.1,
      *       ' TOT1=',F7.1,' WALK2=',F7.1,' BUS2=',F7.1,' CR2=',F7.1,
      *       ' TOT2=',F7.1,' WALK3=',F7.1,' BUS3=',F7.1,' CR3=',F7.1,
-     *       ' TOT3=',F7.1) 
+     *       ' TOT3=',F7.1,' WALK4=',F7.1,' BUS4=',F7.1,' CR4=',F7.1,
+     *       ' TOT4=',F7.1,' WALK5=',F7.1,' BUS5=',F7.1,' CR5=',F7.1,
+     *       ' TOT5=',F7.1) 
 C.........................................................................
       IF(STANUM(STA-MAX_IZONES).NE.2) GO TO 2
       IF(STA.LE.0.OR.STA.GT.MAX_ZONES.OR.STA.LT.MAX_IZONES) THEN
@@ -167,10 +177,10 @@ C.........................................................................
 C.....STORE DATA
       SC=STA-MAX_IZONES
       IF(INDEX.EQ.1.OR.INDEX.EQ.4) THEN
-      STANHB(SC,3)=STANHB(SC,3)+TOT1+TOT2+TOT3
-      STANHB(SC,5)=STANHB(SC,5)+TOT3
+      STANHB(SC,3)=STANHB(SC,3)+TOT1+TOT2+TOT3+TOT4+TOT5
+      STANHB(SC,5)=STANHB(SC,5)+TOT5
       ELSE
-      STANHB(SC,4)=STANHB(SC,4)+TOT1+TOT2+TOT3
+      STANHB(SC,4)=STANHB(SC,4)+TOT1+TOT2+TOT3+TOT4+TOT5
       END IF
       GO TO 2
  9200 WRITE(26,9210) FILENAME

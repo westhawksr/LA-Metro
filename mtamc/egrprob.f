@@ -1,7 +1,8 @@
 C-------------------------------------------------------------------
 C        STATION --> DESTINATION ZONE UTILITY COMPUTATION SUBROUTINE
 C-------------------------------------------------------------------
-       SUBROUTINE EGRESS(STAZNE,IMODE,STAZNEI,INDAPM)
+       SUBROUTINE EGRPROB(STAZNE,IMODE,STAZNEI,INDAPM,STAEGR,
+     *                    DESTWALK,DESTBIKE,STAZONE)
        INCLUDE 'stadat.com'
        INCLUDE 'param.com'
        include 'tpcom.inc'
@@ -10,24 +11,35 @@ C-------------------------------------------------------------------
 C
 C DATA DECLARATIONS
 C
-      INTEGER*2     IMODE,SC,IC,JZ,T
-      INTEGER*2     T1(5),T2(5)
+      INTEGER*2     IMODE,SC,IC,JZ,T,IZ
+      INTEGER*2     T1(5),T2(5),XEQUIV
       INTEGER*2     STAZNEI(MAX_STATIONS,MAX_IZONES,6,4)
       INTEGER*2     LBUS,RBUS,EBUS,TBUS,BBUS,UBUS
       INTEGER*2     INDAPM(MAX_ZONES,MAX_ZONES)
+      INTEGER*4     STAZONE(MAX_STATIONS,MAX_IZONES,2)
       REAL*4        STAZNE(4,MAX_STATIONS,MAX_IZONES)
+      REAL*4        STAEGR(4,MAX_STATIONS,MAX_IZONES)
       REAL*4        INVEH(MAX_ZONES),FARE(MAX_ZONES),
      *              WAIT2(MAX_ZONES),INVEHL(MAX_ZONES),
      *              INVEHR(MAX_ZONES),INVEHE(MAX_ZONES),
      *              INVEHT(MAX_ZONES),
      *              TRANSF(MAX_ZONES),WAIT1(MAX_ZONES)
       REAL*4        WALKEGR(MAX_ZONES)
+      REAL*4        STAWALK(MAX_STATIONS,MAX_ZONES)
+      REAL*4        LUNRDEM,TWAIT
       REAL*4        WALKACC(MAX_ZONES),WALKTFR(MAX_ZONES)
-      REAL*4        LUNRELM(MAX_ZONES,20),LUNRVAL,LUNRDEM
-      REAL*4        NUNRELM(MAX_ZONES,20),NUNRVAL,TWAIT
-      REAL*4        LCROWDM(MAX_ZONES,20),LCRDVAL
-      REAL*4        NCAPACM(MAX_ZONES,20),NCAPVAL
-      REAL*4        TINVEH
+      REAL*4        LUNRVAL,NUNRVAL,LCRDVAL,NCAPVAL
+      INTEGER*2     LUNRELM(MAX_ZONES)
+      INTEGER*2     NUNRELM(MAX_ZONES)
+      INTEGER*2     LCROWDM(MAX_ZONES)
+      INTEGER*2     NCAPACM(MAX_ZONES)
+      REAL*4        TINVEH,XDIST,KTWY,KRPD,LSUM4DRV
+      REAL*4        ESHAR(4),LSEGR
+      REAL*8        BIKEUTIL,BUSUTIL,EEBUS,EBIKE
+      REAL*4        KXEGR
+      REAL*4        DESTWALK(MAX_STATIONS,MAX_IZONES)
+      REAL*4        DESTBIKE(MAX_STATIONS,MAX_IZONES)
+      REAL*8        UTILWALK,EWALK,DENOM,DRVUTIL,EDRV
       CHARACTER*13  NAME(5)
       DATA          NAME/'Commuter Rail',
      *                   'Urban Rail   ',
@@ -35,6 +47,7 @@ C
      *                   'Transitway   ',
      *                   'BRT          '/
       DATA          T1/17,17,0,0,17/,T2/20,20,0,0,20/
+      EWALK=0.0
       WRITE(*,8000) NAME(IMODE)
  8000 FORMAT(1X,'Egress Station --> Destination Zone',
      *            ' Utility Computations for ',a13)
@@ -45,8 +58,29 @@ C
 	    ELSEIF(IMODE.EQ.2) THEN
       LUNRDEM=LSUM2UR*LSUM1TRN*LSUMT*LSUM3UW
 	    ELSEIF(IMODE.EQ.5) THEN
-      LUNRDEM=LSUM2BR*LSUM1TRN*LSUMT*LSUM3BW
+      LUNRDEM=LSUM2BR*LSUM1TRN*LSUMT*LSUM3BRW
 	    ENDIF
+C
+C READ & STORE DIRECT STATION WALK TIME
+C
+      IF(WALKTIME) THEN
+      PURP=13
+      DO IZ=1,MAX_IZONES
+      call intab(fileno,VAR,IZ,PURP,dummy,io)
+      DO SC=1,MAX_STATIONS
+      IC=SC+MAX_IZONES
+      STAWALK(SC,IZ)=FLOAT(VAR(IC))/100.0
+      END DO
+      END DO    
+      CLOSE(66,STATUS='KEEP')
+      CALL PREPIO(BACCEGR,66)
+      ELSE
+      DO IZ=1,MAX_IZONES
+      DO SC=1,MAX_STATIONS
+      STAWALK(SC,IZ)=DESTWALK(SC,IZ)
+      END DO
+      END DO
+      END IF
 C 
 C DESTINATION STATION LOOP 
 C
@@ -54,6 +88,10 @@ C
       IC=SC+MAX_IZONES
       IF(STANUM(SC).NE.IMODE) GO TO 100
       IF(STADATA(SC,6).LE.0.0) GOTO 100
+      XDIST=999.9
+      IF(.NOT.WALKTIME) XDIST=-999.9
+      XEQUIV=0
+      KTWY=0.0
 C
 C OBTAIN EGRESS PORTION OF PATH DATA
 C USING TRANPLAN I/O
@@ -120,47 +158,71 @@ C...WALK TIME TRANSFER
       DO 109,II=1,MAX_ZONES
  109  WALKTFR(II)=FLOAT(VAR(II))/100.0
 C
+C DETERMINE CLOSEST ZONE FOR EACH STATION
+C
+      IF(WALKTIME) THEN
+      DO JZ=1,MAX_IZONES
+      IF(STAWALK(SC,JZ).LT.XDIST.AND.STAWALK(SC,JZ).GT.0) THEN
+      XEQUIV=JZ
+      XDIST=STAWALK(SC,JZ)
+      END IF
+      END DO
+      ELSE
+      DO JZ=1,MAX_IZONES
+      IF(STAWALK(SC,JZ).GT.XDIST.AND.STAWALK(SC,JZ).NE.0) THEN
+      XEQUIV=JZ
+      XDIST=STAWALK(SC,JZ)
+      END IF
+      END DO      
+      END IF
+C....................................................................
+      IF(DEBUG.AND.SDETAIL) THEN
+      WRITE(62,9031) NAME(IMODE),IC,XEQUIV,XDIST
+ 9031 FORMAT(1X,'CLOSEST ZONE TO STATION FOR ',A13/
+     *       1X,'-----------------------'/
+     *       1X,'STATION     =',I10/
+     *       1X,'CLOSEST ZONE=',I10/
+     *       1X,'TIME        =',F10.5/)
+      END IF
+C.................................................................... 
+C
 C   LINK UNRELIABILITY
 C
       IF(LUNREL) THEN
-      DO T=1,20
+      T=5
       CALL INTAB(90,VAR,IC,T,DUMMY,IO)
       DO II=1,MAX_ZONES
-      LUNRELM(II,T)=FLOAT(VAR(II))/100.0
-      END DO
+      LUNRELM(II)=IJINT(VAR(II))
       END DO
       END IF
 C
 C   STOP UNRELIABILITY
 C
       IF(NUNREL) THEN
-      DO T=1,20
+      T=5
       CALL INTAB(91,VAR,IC,T,DUMMY,IO)
       DO II=1,MAX_ZONES
-      NUNRELM(II,T)=FLOAT(VAR(II))/100.0
-      END DO
+      NUNRELM(II)=IJINT(VAR(II))
       END DO
       END IF
 C
 C   CROWDING
 C
       IF(LCROWD) THEN
-      DO T=1,20
+      T=5
       CALL INTAB(92,VAR,IC,T,DUMMY,IO)
       DO II=1,MAX_ZONES
-      LCROWDM(II,T)=FLOAT(VAR(II))/100.0
-      END DO
+      LCROWDM(II)=IJINT(VAR(II))
       END DO
       END IF
 C
 C   STOP CAPACITY
 C
       IF(NCAPAC) THEN
-      DO T=1,20
+      T=5
       CALL INTAB(93,VAR,IC,T,DUMMY,IO)
       DO II=1,MAX_ZONES
-      NCAPACM(II,T)=FLOAT(VAR(II))/100.0
-      END DO
+      NCAPACM(II)=IJINT(VAR(II))
       END DO
       END IF
 C
@@ -180,76 +242,102 @@ C
       IF(.NOT.JOI(JZ)) GO TO 200
       STAZNE(1,SC,JZ)=0.0
       STAZNE(2,SC,JZ)=0.0   
-      LUNRVAL=0.0
-      NUNRVAL=0.0
-      LCRDVAL=0.0
-      NCAPVAL=0.0
+      LUNRVAL=FLOATI(LUNRELM(JZ))/100.0
+      NUNRVAL=FLOATI(NUNRELM(JZ))/100.0
+      LCRDVAL=FLOATI(LCROWDM(JZ))/100.0
+      NCAPVAL=FLOATI(NCAPACM(JZ))/100.0
 C
-C DESTINATION STATION --> EGRESS ZONE VALIDITY CHECKS
+C  WALK EGRESS
 C
-      IF(WALKEGR(JZ).LE.0.0) THEN
-      STAZNE(1,SC,JZ)=-999.9
-      GO TO 200
-      END IF  
-C
-C  CALCULATE TOTAL LINK UNRELIABILITY
-C
-      IF(LUNREL) THEN
-      DO T=T1(IMODE),T2(IMODE)
-      LUNRVAL=LUNRVAL+LUNRELM(JZ,T)
-      END DO
+      KXEGR=0.0
+      IF(WALKTIME) THEN
+      IF(STADATA(SC,8).EQ.5) KXEGR=-0.125
+      KXEGR=KXEGR/LUNRDEM
+      IF(STAWALK(SC,JZ).GT.0) THEN
+      UTILWALK=COEFF(7)*STAWALK(SC,JZ)+KXEGR
+      ELSE
+      UTILWALK=0.0
       END IF
-C
-C  CALCULATE TOTAL STOP UNRELIABILITY
-C
-      IF(NUNREL) THEN
-      DO T=T1(IMODE),T2(IMODE)
-      NUNRVAL=NUNRVAL+NUNRELM(JZ,T)
-      END DO
+C....................................................................
+      IF(DEBUG.AND.SDETAIL) THEN
+      WRITE(62,9026) NAME(IMODE),IC,STANAME(SC),JZ,
+     *               STAWALK(SC,JZ),UTILWALK
+ 9026 FORMAT(1X,'DESTINATION STATION --> EGRESS ZONE COMPUTATIONS',
+     *       1X,'(',A13,')'/
+     *       1X,'------------------------------------------------'//
+     *       1X,'DESTINATION       STATION=',I10,1X,A37/
+     *       1X,'EGRESS            ZONE   =',I10/
+     *       1X,'DIRECT WALK       TIME   =',F10.2/
+     *       1X,'DIRECT WALK    UTILITY   =',F10.5/)
       END IF
-C
-C  CALCULATE TOTAL LINK CROWDING
-C
-      IF(LCROWD) THEN
-      DO T=T1(IMODE),T2(IMODE)
-      LCRDVAL=LCRDVAL+LCROWDM(JZ,T)
-      END DO
+C....................................................................
+      ELSE
+      IF(STAWALK(SC,JZ).NE.0) THEN
+      UTILWALK=(STAWALK(SC,JZ)+KXEGR)/LUNRDEM
+      ELSE
+      UTILWALK=0.0
+      END IF   
+      IF(UTILWALK.NE.0.0) THEN
+      EWALK=DEXP(UTILWALK)
+      ELSE
+      EWALK=0.0
+      END IF   
+C....................................................................
+      IF(DEBUG.AND.SDETAIL) THEN
+      WRITE(62,9027) NAME(IMODE),IC,STANAME(SC),JZ,
+     *               STAWALK(SC,JZ),UTILWALK,EWALK
+ 9027 FORMAT(1X,'DESTINATION STATION --> EGRESS ZONE COMPUTATIONS',
+     *       1X,'(',A13,')'/
+     *       1X,'------------------------------------------------'//
+     *       1X,'DESTINATION       STATION=',I10,1X,A37/
+     *       1X,'EGRESS            ZONE   =',I10/
+     *       1X,'DIRECT WALK    UTILITY   =',F10.5/
+     *       1X,'TOTAL  WALK    UTILITY   =',F10.5/
+     *       1X,'EXPONENTIATED  UTILITY   =',E12.5/)
       END IF
-C
-C  CALCULATE TOTAL STOP CAPACITY
-C
-      IF(NCAPAC) THEN
-      DO T=T1(IMODE),T2(IMODE)
-      NCAPVAL=NCAPVAL+NCAPACM(JZ,T)
-      END DO
+C....................................................................      
       END IF
 C
 C COMPUTE IN-VEHICLE TIME COMPUTATIONS
 C
       TINVEH=INVEHL(JZ)+INVEHR(JZ)+INVEHE(JZ)+INVEHT(JZ)
 C
+C DESTINATION STATION --> EGRESS ZONE VALIDITY CHECKS
+C
+      IF(WALKEGR(JZ).LE.0.0.OR.TINVEH.LE.0.0) THEN
+      STAZNE(1,SC,JZ)=-999.9
+      BUSUTIL=0.0
+      EEBUS=0.0
+      GO TO 250
+      END IF  
+      IF((NOTWYAE).AND.INVEHT(JZ).GT.0) THEN
+      STAZNE(1,SC,JZ)=-999.9
+      BUSUTIL=0.0
+      EEBUS=0.0
+      GO TO 250
+      END IF  
+C
 C COMPUTE EGRESS PORTION OF UTILITY
 C
 C....USING MODEL COEFFICIENTS
+      KTWY=0.0
+      KRPD=0.0
+      IF(INVEHT(JZ).GT.0) KTWY=KTWYAE
+      IF(INVEHR(JZ).GT.0) KRPD=KRPDAE
       STAZNE(1,SC,JZ)=COEFF(1)*TINVEH + COEFF(3)*WAIT1(JZ) +
      *       COEFF(4)*WAIT2(JZ) + COEFF(5)*(TRANSF(JZ)) +
      *       COEFF(7)*WALKTFR(JZ) +
      *       COEFF(75)* (LUNRVAL/LUNRDEM) +
      *       COEFF(76)* (NUNRVAL/LUNRDEM) +
      *       COEFF(77)* (LCRDVAL/LUNRDEM) +
-     *       COEFF(78)* (NCAPVAL/LUNRDEM)
+     *       COEFF(78)* (NCAPVAL/LUNRDEM) +
+     *       KTWY/LUNRDEM + KRPD/LUNRDEM
 C.....STORE NUMBER OF TRANSFERS 
       STAZNE(2,SC,JZ)=TRANSF(JZ)
 C.....STORE WALK TIME AT DESTINATION
       STAZNE(3,SC,JZ)=WALKEGR(JZ)
 C.....STORE TRANSIT FARE
       STAZNE(4,SC,JZ)=FARE(JZ)
-C     IF((SC+MAX_IZONES).EQ.UNIONSTA) STAZNE(4,SC,JZ)=0.0 
-      IF(INVEH(JZ).LE.0) THEN
-      STAIND(SC,JZ)=1
-      ELSE
-      STAIND(SC,JZ)=2
-      END IF
 C.....STORE SUBMODE USAGE
       LBUS=0
       RBUS=0
@@ -284,8 +372,7 @@ C....................................................................
      *               TRANSF(JZ),FARE(JZ),WALKACC(JZ),
      *               WALKEGR(JZ),
      *               WALKTFR(JZ),LUNRVAL,NUNRVAL,
-     *               LCRDVAL,NCAPVAL,STAIND(SC,JZ),
-     *               STAZNE(1,SC,JZ)
+     *               LCRDVAL,NCAPVAL,STAZNE(1,SC,JZ)
  9025 FORMAT(1X,'DESTINATION STATION --> EGRESS ZONE COMPUTATIONS',
      *       1X,'(',A13,')'/
      *       1X,'------------------------------------------------'//
@@ -306,12 +393,91 @@ C....................................................................
      *       1X,'LINK UNRELIABILITY   TIME=',F8.2/
      *       1X,'STOP UNRELIABILITY   TIME=',F8.2/
      *       1X,'LINK CROWDING        TIME=',F8.2/
-     *       1X,'CAPACITY             TIME=',F8.2//
-     *       1X,'EGRESS INDICATOR         =',I8,' 1=WALK,2=BUS'/
+     *       1X,'CAPACITY             TIME=',F8.2/
      *       1X,'UTILITY VALUE            =',F10.5/)
       END IF
       END IF
 C.......................................................................
+      BUSUTIL=STAZNE(1,SC,JZ)+COEFF(6)*FARE(JZ)+
+     *        COEFF(7)*STAZNE(3,SC,JZ)
+      IF(IMODE.EQ.5) THEN
+      BUSUTIL=BUSUTIL + KBRTEGR/(LSUM1TRN*LSUM2BR*LSUM3BRW)
+      END IF
+      IF(STAZNE(1,SC,JZ).NE.0.0) THEN
+      EEBUS=DEXP(BUSUTIL)
+      ELSE
+      EEBUS=0.0
+      END IF
+  250 CONTINUE
+C...BICYCLE
+      BIKEUTIL=DESTBIKE(SC,JZ)/LUNRDEM +
+     *         EGRBIKE(IMODE)/LUNRDEM
+      IF(BIKEUTIL.NE.0.0) THEN
+      EBIKE=DEXP(BIKEUTIL)
+      ELSE
+      EBIKE=0.0
+      END IF
+C...DRIVE EGRESS
+      EDRV=0.0
+      IF(STACAR) THEN
+      DRVUTIL=0.0
+      IF(IMODE.EQ.1) LSUM4DRV=LSUM4CR
+      IF(IMODE.EQ.2) LSUM4DRV=LSUM4UR
+      IF(IMODE.EQ.5) LSUM4DRV=LSUM4BR
+      DISTEGR=FLOAT(STAZONE(SC,JZ,2))/100.0
+      IF(STADATA(SC,7).GE.1.AND.STAZONE(SC,JZ,1).GT.O.AND.
+     *     DISTEGR.GT.EGRDIST) THEN
+      DRVUTIL=COEFF(9)*FLOAT(STAZONE(SC,JZ,1))/100.0 +
+     *        COEFF(6)*FLOAT(STAZONE(SC,JZ,2))/100.0*OPCOST
+      DRVUTIL=DRVUTIL/(LUNRDEM*LSUM4DRV)
+      END IF
+      IF(DRVUTIL.NE.0.0) THEN
+      EDRV=DEXP(DRVUTIL)
+      ELSE
+      EDRV=0.0
+      END IF
+      END IF
+C
+      DENOM=EWALK+EEBUS+EBIKE+EDRV
+      ESHAR=0.0
+      LSEGR=0.0
+      IF(DENOM.GT.0.0) THEN
+      ESHAR(1)=EWALK/DENOM
+      ESHAR(3)=EBIKE/DENOM
+      ESHAR(4)=EDRV/DENOM
+      ESHAR(2)=1.0-ESHAR(1)-ESHAR(3)-ESHAR(4)
+      LSEGR=LOG(DENOM)
+      END IF
+      STAEGR(1,SC,JZ)=ESHAR(1)
+      STAEGR(2,SC,JZ)=ESHAR(2)
+      STAEGR(3,SC,JZ)=LSEGR
+      STAEGR(4,SC,JZ)=ESHAR(4)
+C......................................................................
+      IF(DEBUG.AND.SDETAIL) THEN
+      WRITE(62,9032) NAME(IMODE),IC,STANAME(SC),JZ
+ 9032 FORMAT(1X,'DESTINATION STATION --> EGRESS ZONE COMPUTATIONS',
+     *       1X,'(',A13,')'/
+     *       1X,'------------------------------------------------'//
+     *       1X,'DESTINATION       STATION=',I8,1X,A37/
+     *       1X,'EGRESS            ZONE   =',I8)
+      WRITE(62,9030) UTILWALK,EWALK,BUSUTIL,EEBUS,BIKEUTIL,EBIKE,
+     *               DRVUTIL,EDRV,ESHAR,LSEGR
+ 9030 FORMAT(/1X,'SUMMARY OF EGRESS UTILITIES & PROBABILITIES'/
+     *       1X, '-------------------------------------------'/
+     *       1X,'                     ',5X,'UTIL',10X,'EUTIL'/
+     *       1X,'                     ',2X,'----------',5X,
+     *          '----------'/      
+     *       1X,'WALK  EGRESS           ',F10.5,3X,E12.5/
+     *       1X,'BUS   EGRESS           ',F10.5,3X,E12.5/
+     *       1X,'BIKE  EGRESS           ',F10.5,3X,E12.5/
+     *       1X,'DRIVE EGRESS           ',F10.5,3X,E12.5//
+     *       1X,'WALK  SHARE            ',F10.5/
+     *       1X,'BUS   SHARE            ',F10.5/
+     *       1X,'BIKE  SHARE            ',F10.5/
+     *       1X,'DRIVE SHARE            ',F10.5/
+     *       1X,'EGRESS LOGSUM          ',F10.5/)      
+      END IF
+C......................................................................
   200 CONTINUE
   100 CONTINUE
       IF(LUNREL) THEN

@@ -71,21 +71,21 @@ C
 C
 C     ERROR MESSAGES
 C
-  210 WRITE (TPOUT,211) JTAPE(LUN),ORIGIN,PURP
-  211 FORMAT (//' *** IN FILE ',A8,' AT ZONE',I5,' AND TABLE',I3,
+  210 WRITE (TPOUT,211) LUN,ORIGIN,PURP
+  211 FORMAT (//' *** IN FILE ',I8,' AT ZONE',I5,' AND TABLE',I3,
      1          ' PREMATURE EOF ***')
       GO TO 250
-  230 WRITE (TPOUT,231) JTAPE(LUN),ORIGIN,PURP,IO(1),IO(2)
-  231 FORMAT (//' *** IN FILE ',A8,' *** ZONAL ORDER ERROR ***'/
+  230 WRITE (TPOUT,231) LUN,ORIGIN,PURP,IO(1),IO(2)
+  231 FORMAT (//' *** IN FILE ',I8,' *** ZONAL ORDER ERROR ***'/
      1          ' LOOKING FOR ZONE',I5,' AND TABLE',I3,
      2          '    -- FOUND ZONE',I5,' AND TABLE',I3)
       GO TO 250
-  240 WRITE (TPOUT,241) JTAPE(LUN),ORIGIN,PURP,IO(1),IO(2)
-  241 FORMAT (//' *** IN FILE ',A8,' *** TABLE ORDER ERROR ***'/
+  240 WRITE (TPOUT,241) LUN,ORIGIN,PURP,IO(1),IO(2)
+  241 FORMAT (//' *** IN FILE ',I8,' *** TABLE ORDER ERROR ***'/
      1          ' LOOKING FOR ZONE',I5,' AND TABLE',I3,
      2          '    -- FOUND ZONE',I5,' AND TABLE',I3)
   250 REWIND LUN
       STOP                                                              <test_CB>
 C
  9999 RETURN
-      END
+      END

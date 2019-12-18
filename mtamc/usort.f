@@ -9,20 +9,23 @@ C-------------------------------------------------------------------
 C
 C DECLARATIONS REQUIRED FOR DRIVE ACCESS STATION CHOICE
 C
-      INTEGER*2     NNDEX(2,10),JZ,TJZ,STA(MAX_STATIONS),DSTA(2,10),
-     *              ISTA(2,10),IX,IMODE,QJZ,SC,INDC
-      REAL*4        UTIL(2,10),TUTIL,DUTIL(2,10),QUTIL,CRPNR(10)
+      INTEGER*2     NNDEX(5,10),JZ,TJZ,STA(MAX_STATIONS,2),
+     *              ISTA(5,10,2),IX,IMODE,QJZ,SC,INDC,DSTA(10,10)
+      REAL*4        UTIL(5,10),TUTIL,DUTIL(10,10),QUTIL,CRPNR(10)
       REAL*4        PNRRAT,PNRRAT2,CRPNR2(10)     
       LOGICAL       CSORT
-      CHARACTER*13  NAME(2)
+      CHARACTER*13  NAME(5)
       CHARACTER*3   TYPE(2)
       DATA          NAME/'Commuter Rail',
-     *                   'Urban Rail   '/
+     *                   'Urban Rail   ',
+     *                   'Express Bus  ',
+     *                   'Transitway   ',
+     *                   'BRT          '/
       DATA          TYPE/'PNR','KNR'/
 C
       DO 100 IX=1,10
-         NNDEX(IMODE,IX)=STA(IX)+MAX_IZONES
-         DSTA(imode,IX)=ISTA(imode,IX)
+         NNDEX(IMODE,IX)=STA(IX,INDC)+MAX_IZONES
+         DSTA(imode,IX)=ISTA(imode,IX,INDC)
       IF(UTIL(IMODE,IX).EQ.0.0) UTIL(IMODE,IX)=-99999.9
   100 CONTINUE
 C
@@ -61,7 +64,7 @@ C...................................................................
      *       1X,'------------------------')
       DO 9032 IX=1,10
       SC=NNDEX(IMODE,IX)-MAX_IZONES
-      IF(SC.LE.0) SC=MAX_IZONES
+      IF(SC.LE.0) SC=MAX_STATIONS
       WRITE(26,9033) NNDEX(IMODE,IX),DSTA(imode,IX),UTIL(IMODE,IX),
      * 	STANAME(SC)
  9033 FORMAT(1X,' MODEL UTIL(',I4,'-->',I4')=',F9.2,5X,A37)
