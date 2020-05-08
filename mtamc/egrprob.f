@@ -33,7 +33,7 @@ C
       INTEGER*2     NUNRELM(MAX_ZONES)
       INTEGER*2     LCROWDM(MAX_ZONES)
       INTEGER*2     NCAPACM(MAX_ZONES)
-      REAL*4        TINVEH,XDIST,KTWY,KRPD,LSUM4DRV
+      REAL*4        TINVEH,XDIST,KTWY,KRPD,LSUM4DRV,LSUM4BIK
       REAL*4        ESHAR(4),LSEGR
       REAL*8        BIKEUTIL,BUSUTIL,EEBUS,EBIKE
       REAL*4        KXEGR
@@ -273,7 +273,7 @@ C....................................................................
 C....................................................................
       ELSE
       IF(STAWALK(SC,JZ).NE.0) THEN
-      UTILWALK=(STAWALK(SC,JZ)+KXEGR)/LUNRDEM
+      UTILWALK=(STAWALK(SC,JZ)+(KXEGR+EGRWLK(IMODE)))/LUNRDEM
       ELSE
       UTILWALK=0.0
       END IF   
@@ -410,8 +410,11 @@ C.......................................................................
       END IF
   250 CONTINUE
 C...BICYCLE
-      BIKEUTIL=DESTBIKE(SC,JZ)/LUNRDEM +
-     *         EGRBIKE(IMODE)/LUNRDEM
+      IF(IMODE.EQ.1) LSUM4BIK=LSUM4BKCR
+      IF(IMODE.EQ.2) LSUM4BIK=LSUM4BKUR
+      IF(IMODE.EQ.5) LSUM4BIK=LSUM4BKBR
+      BIKEUTIL=DESTBIKE(SC,JZ)/(LUNRDEM*LSUM4BIK) +
+     *         EGRBIKE(IMODE)/(LUNRDEM*LSUM4BIK)
       IF(BIKEUTIL.NE.0.0) THEN
       EBIKE=DEXP(BIKEUTIL)
       ELSE
@@ -446,7 +449,7 @@ C
       ESHAR(3)=EBIKE/DENOM
       ESHAR(4)=EDRV/DENOM
       ESHAR(2)=1.0-ESHAR(1)-ESHAR(3)-ESHAR(4)
-      LSEGR=LOG(DENOM)
+      LSEGR=LOG(DENOM)*LSUMEGR
       END IF
       STAEGR(1,SC,JZ)=ESHAR(1)
       STAEGR(2,SC,JZ)=ESHAR(2)

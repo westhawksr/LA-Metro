@@ -103,7 +103,8 @@ C
      *                   CLUNREL,CNUNREL,CNCAPAC,CLCROWD,
      *                   NHBCOEF,NMLSUM,ITFPEN,
      *                   LSBRBIK,LSUM3BRW,LSUM3BRB,LSUM3BRP,
-     *                   LSUM3BRK,LSUM3BRBK,LSUM4CR,LSUM4UR,LSUM4BR
+     *                   LSUM3BRK,LSUM3BRBK,LSUM4CR,LSUM4UR,LSUM4BR,
+     *                   LSUM4BKCR,LSUM4BKUR,LSUM4BKBR,LSUMEGR
       NAMELIST  /CONSTS/ KKCR,KPCR,KBCR,KWCR,KKUR,KPUR,KBUR,KWUR,
      *                   KBKCR,KBKUR,KINTRAWK,KINTRABK,
      *                   KWWAY,KDWAY,KWEXP,KDEXP,KWBUS,KDBUS,KDTRN,
@@ -112,9 +113,9 @@ C
      *                   KPNR,KDA,K2P,K3P,K4P,KCR,KUR,KEBUS,KWAY,KLBUS,
      *                   KRBUS,KSR,KAUT,KTRN,KNMOT,KBIKE,KBRPDW,KBTWYW,
      *                   KBRPDB,KBTWYB,KBEXPB,KBBRTB,KEXPO,
-     *                   KESFV,KWSAB,KSEPV,KIRCN,KVERM,EGRBIKE,
+     *                   KESFV,KWSAB,KSEPV,KIRCN,KVERM,EGRBIKE,EGRWLK,
      *                   KBEXPW,KINFL,KINFR,KRED,KBLUE,KBEXPD,KBTWYD,
-     *                   KGREEN,KGOLD,KTRNT,KBRT,KBRPDD,
+     *                   KGREEN,KGOLD,KTRNT,KBRT,KBRPDD,EGRDRV,
      *                   KBBRTW,KBBRTD,CCBD,KTOLL,KDBRT,KTWYAE,KRPDAE,
      *                   KTOLL2,KTOLL3,KTOLL4,KHOV2,KHOV3,KHOV4,
      *                   KLOTRN,KFLYAWAY,KFLYKNR,KFLYPNR,ACNST,
@@ -128,7 +129,8 @@ C
      *                   BETXFER,DETXFER,WTTXFER,BTTXFER,DTTXFER,
      *                   WBTXFER,BBTXFER,DBTXFER,CBUSEGR,UBUSEGR,
      *                   ADJFCT,ADJFCT2,CLOSURE,MAXCALIT,MINVAL,
-     *                   STAOBS,OBRTEGR,OBCBDCR,OBS_BIKE_EGR
+     *                   STAOBS,OBRTEGR,OBCBDCR,OBS_BIKE_EGR,
+     *                   OBS_WALK_EGR,OBS_DRV_EGR
 C--------------------------------------------------------------------
       FF=CHAR(12)
       NCATS=5
@@ -205,9 +207,21 @@ C--------------------------------------------------------------------
       STSZONE=0
       NSTSZ=0
       EGRBIKE=0.0
+      EGRWLK=0.0
+      EGRDRV=0.0
       KAUT=0.0
       ZCARMIN=15.0
       EGRSHARE=.FALSE.
+      OBS_BIKE_EGR=0.0
+      OBS_WALK_EGR=0.0
+      OBS_DRV_EGR=0.0
+      LSUM4CR=0.0
+      LSUM4UR=0.0
+      LSUM4BR=0.0
+      LSUM4BKCR=0.0
+      LSUM4BKUR=0.0
+      LSUM4BKBR=0.0      
+      LSUMEGR=0.0
 C
 C     OPEN AND READ THE CONTROL FILE
 C
@@ -356,6 +370,10 @@ C
       IF(LSUM4CR.EQ.0.0) LSUM4CR=1.0
       IF(LSUM4UR.EQ.0.0) LSUM4UR=1.0
       IF(LSUM4BR.EQ.0.0) LSUM4BR=1.0
+      IF(LSUM4BKCR.EQ.0.0) LSUM4BKCR=1.0
+      IF(LSUM4BKUR.EQ.0.0) LSUM4BKUR=1.0
+      IF(LSUM4BKBR.EQ.0.0) LSUM4BKBR=1.0
+      IF(LSUMEGR.EQ.0.0) LSUMEGR=1.0
 C
 C SUMMARIZE INPUT CONTROL FILE INFORMATION
 C
@@ -459,7 +477,8 @@ C
      *               LSUM3CK,LSUM2UR,LSUM3UW,LSUM3UBK,LSUM3UB,
      *               LSUM3UP,LSUM3UK,LSUM2BR,LSUM3BRW,LSUM3BRBK,
      *               LSUM3BRB,LSUM3BRP,LSUM3BRK,LSUM2RB,LSUM2TW,
-     *               LSUM2EB,LSUM2LB,LSUM4CR,LSUM4UR,LSUM4BR
+     *               LSUM2EB,LSUM2LB,LSUM4CR,LSUM4UR,LSUM4BR,
+     *               LSUM4BKCR,LSUM4BKUR,LSUM4BKBR,LSUMEGR
  8048 FORMAT(/
      *  1X,'TRANSIT LOGSUM COEFFICIENTS'/
      *  1X,'---------------------------'//
@@ -488,7 +507,11 @@ C
      *  1X,'LOCAL BUS          LOGSUM          =',F8.5,' (LSUM2LB)'/
      *  1X,'CR DRIVE EGRESS    LOGSUM          =',F8.5,' (LSUM4CR)'/
      *  1X,'UR DRIVE EGRESS    LOGSUM          =',F8.5,' (LSUM4UR)'/
-     *  1X,'BRT DRIVE EGRESS   LOGSUM          =',F8.5,' (LSUM4BR)'/)     
+     *  1X,'BRT DRIVE EGRESS   LOGSUM          =',F8.5,' (LSUM4BR)'/
+     *  1X,'CR BIKE  EGRESS    LOGSUM          =',F8.5,' (LSUM4BKCR)'/
+     *  1X,'UR BIKE  EGRESS    LOGSUM          =',F8.5,' (LSUM4BKUR)'/
+     *  1X,'BRT BIKE EGRESS    LOGSUM          =',F8.5,' (LSUM4BKBR)'/
+     *  1X,'STATION EGRESS     LOGSUM          =',F8.5,' (LSUMEGR)'/)
 C
 C CHECK LOGSUM VALUES
 C
@@ -726,7 +749,7 @@ C
      *  ' CCODE(20)=',L1,' KRBUS  (RAPID BUS)'/
      *  ' CCODE(21)=',L1,' KWRPD  (WALK TO RAPID BUS)'/
      *  ' CCODE(22)=',L1,' KBRPDD (BUS TRANSFER TO DRIVE RAPID)'/
-     *  ' CCODE(23)=',L1,'                                   '/
+     *  ' CCODE(23)=',L1,' EGRDRV (DRIVE EGRESS CONSTANT)'/
      *  ' CCODE(24)=',L1,' CCBD   (CBD CONSTANT)'/
      *  ' CCODE(25)=',L1,' KBTWYD (BUS TRANSFER TO DRIVE TRANSITWAY)'/
      *  ' CCODE(26)=',L1,' KBEXPD (BUS TRANSFER TO DRIVE EXPRESS)'/
@@ -762,9 +785,9 @@ C
      *  ' CCODE(56)=',L1,' COEFF(40) (WALK TO TWAY BUS TRANSFERS)'/
      *  ' CCODE(57)=',L1,' COEFF(41) (BIKE TO TWAY BUS TRANSFERS)'/
      *  ' CCODE(58)=',L1,' COEFF(42) (DRIVE TO TWAY BUS TRANSFERS)'/
-     *  ' CCODE(59)=',L1,'                                      '/
-     *  ' CCODE(60)=',L1,'                                      '/
-     *  ' CCODE(61)=',L1,'                                       '/
+     *  ' CCODE(59)=',L1,' COEFF(43) (WALK TO BRT TRANSFERS)'/                                    '/
+     *  ' CCODE(60)=',L1,' COEFF(44) (BIKE TO BRT TRANSFER)'/
+     *  ' CCODE(61)=',L1,' EGRWLK (WALK EGRESS CONSTANT)'/
      *  ' CCODE(62)=',L1,' COEFF(46) (COMMUTER RAIL BUS EGRESS)'/
      *  ' CCODE(63)=',L1,' COEFF(47) (URBAN RAIL BUS EGRESS)'/
      *  ' CCODE(64)=',L1,' KWCR(1) (WALK TO COMMUTER RAIL)'/
@@ -781,7 +804,8 @@ C
      *  ' CCODE(75)=',L1,' KUR(2-3) (URBAN RAIL - SEG#2,3)'/
      *  ' CCODE(76)=',L1,' EGRBIKE  (BIKE EGRESS CONSTANT)'/
      *  ' CCODE(77)=',L1,' KWBR     (WALK TO BRT)'/
-     *  ' CCODE(78)=',L1,' KWEXP    (WALK TO EXPRESS BUS)'/)
+     *  ' CCODE(78)=',L1,' KWEXP    (WALK TO EXPRESS BUS)'/
+     *  ' CCODE(79)=',L1,' KKUR     (KNR TO URBAN RAIL'/)
       END IF 
 C
 C CHECK CAPACITY RESTRAINT ITERATION LOGIC

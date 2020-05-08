@@ -100,8 +100,9 @@ C
       IF((MODE.LE.0).OR.(MODE.GT.38).OR.(INCGP.LE.0).OR.
      *      (INCGP.GT.NCATS)) THEN
       WRITE(26,103) MODE,INCGP
-  103 FORMAT(' SCALIB 45 (F) ERROR IN CALIBRATION INDICES ',
-     *          ' MODE=',I3,' MARKET SEGMENT=',I2)
+      WRITE(*,103) MODE,INCGP
+  103 FORMAT(/' SCALIB 45 (F) ERROR IN CALIBRATION INDICES ',
+     *          ' MODE=',I3,' MARKET SEGMENT=',I2/)
          STOP 45
          END IF
          TMP(MODE,INCGP)=TOTAL
@@ -1261,8 +1262,10 @@ C
          POBS=0.0
          PEST=0.0
       DO 5722 INC=1,NCATS
-         POBS=POBS+OESUM(25,INC)+OESUM(26,INC)+OESUM(32,INC)
-         PEST=PEST+TESUM(56,INC)+TESUM(57,INC)+TESUM(72,INC)
+         POBS=POBS+OESUM(25,INC)+OESUM(26,INC)+OESUM(32,INC)+
+     *   OESUM(35,INC)+OESUM(36,INC)
+         PEST=PEST+TESUM(56,INC)+TESUM(57,INC)+TESUM(72,INC)+
+     *   TESUM(58,INC)+TESUM(59,INC)
  5722 CONTINUE
          RCON=0.0
          IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
@@ -2390,7 +2393,7 @@ C
          END IF
          ECON=KWWAY(1)
          NCON=ECON+ADJFCT*RCON
-         IF(POBS.EQ.0.0) NCON=MINVAL
+         IF(TO.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
          KWWAY(1)=NCON
          KWWAY(2)=NCON
@@ -3083,40 +3086,6 @@ C
       END IF
 C
 C----------------------------------------------------------------------
-C     Calculate Drive to BRT Transfer Constants
-C
-      IF(CCODE(61)) THEN
-      WRITE(26,5934)
- 5934 FORMAT(/15X,'Drive BRT-- Transfer Constant',/,
-     *        15X,'-----------------------------',/,
-     *  1X,'             Obs     Est    Existing               New'/
-     *  1X,'  Name     Percent Percent  Constant Adjustment  Constant'/
-     *  1X,'---------  ------- ------- --------- ---------- ---------')
-         POBS=DBTXFER
-         DENOM=BUSTXFER(15,1)+BUSTXFER(15,2)+BUSTXFER(15,3)+
-     *         BUSTXFER(15,4)
-         PEST=BUSTXFER(15,2)+BUSTXFER(15,3)+BUSTXFER(15,4)
-         IF(DENOM.GT.0) THEN
-         PEST=PEST/DENOM
-         ELSE
-         PEST=0.0
-         END IF
-         RCON=0.0
-         IF((POBS.GT.0.0.AND.POBS.LT.1.0).AND.
-     *      (PEST.GT.0.0.AND.PEST.LT.1.0)) THEN
-            RCON=DLOG(((POBS*PEST)-POBS)/((POBS*PEST)-PEST))
-         END IF
-         ECON=COEFF(45)
-         IF(RCON.GT.0.AND.ECON.EQ.0) RCON=0.0
-         NCON=ECON+ADJFCT2*RCON
-         IF(POBS.EQ.0.0) NCON=MINVAL
-         NCON=DMAX1(NCON,MINVAL)
-         COEFF(45)=NCON
-         WRITE(26,5933) 45,POBS,PEST,ECON,RCON,NCON
-         WRITE(51,5946) 45,COEFF(45)
-      END IF
-C
-C----------------------------------------------------------------------
 C     Calculate Commuter Rail Bus Egress Constants
 C
       IF(CCODE(62)) THEN
@@ -3499,7 +3468,8 @@ C
          WRITE(26,5735) POBS,PEST,ECON,RCON,NCON
  5735    FORMAT(1X,'CCBD(1)',3X,2(1X,F7.0),1X,
      A               F9.5,1X,F10.5,1X,F9.5)
-      WRITE(51,5743) CCBD(1)
+      WRITE(51,5744) CCBD(1)
+ 5744 FORMAT('CCBD=',F9.5)
       END IF
 C
 C----------------------------------------------------------------------
@@ -3560,7 +3530,7 @@ C
       RCON=DLOG(POBS/PEST)
       END IF
       ECON=EGRBIKE(IMODE)
-      NCON=ECON+ADJFCT*RCON
+      NCON=ECON+ADJFCT2*RCON
       NCON=DMAX1(NCON,MINVAL)
       IF(POBS.EQ.0.0) NCON=MINVAL      
       EGRBIKE(IMODE)=NCON
@@ -3623,7 +3593,7 @@ C
          END IF
          ECON=KWEXP(1)
          NCON=ECON+ADJFCT*RCON
-         IF(POBS.EQ.0.0) NCON=MINVAL
+         IF(TO.EQ.0.0) NCON=MINVAL
          NCON=DMAX1(NCON,MINVAL)
          KWEXP(1)=NCON
          KWEXP(2)=NCON
@@ -3635,6 +3605,115 @@ C
      *         F9.5,1X,F10.5,1X,F9.5)
       WRITE(51,4921) KWEXP
  4921 FORMAT('KWEXP=',F9.5,4(',',F9.5))
+      END IF
+C
+C---------------------------------------------------------------------
+C     Calculate Fixed Guideway Walk Egress Constants
+C
+      IF(CCODE(61)) THEN
+      WRITE(26,5717)
+ 5717 FORMAT(/15X,'Fixed Guideway Walk Egress Constants',/,
+     *        15X,'------------------------------------',/,
+     *  1X,'                 Obs     Est    Existing               ',
+     *        'New'/
+     *  1X,'    Mode        Value   Value   Constant Adjustment  ',
+     *     'Constant'/
+     *  1X,'-------------  ------- ------- --------- ---------- ',
+     *     '---------')
+      DO IMODE=1,5
+      IF(IMODE.EQ.3.OR.IMODE.EQ.4) CYCLE
+      POBS=OBS_WALK_EGR(IMODE)
+      PEST=0.0
+      DO K=1,MAX_STATIONS
+      IF(STANUM(K).NE.IMODE) CYCLE
+      PEST=PEST+STASUM2(K,1)
+      END DO
+      RCON=0.0
+      IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+      RCON=DLOG(POBS/PEST)
+      END IF
+      ECON=EGRWLK(IMODE)
+      NCON=ECON+ADJFCT2*RCON
+      NCON=DMAX1(NCON,MINVAL)
+      IF(POBS.EQ.0.0) NCON=MINVAL      
+      EGRWLK(IMODE)=NCON
+      WRITE(26,5632) NAME(IMODE),POBS,PEST,ECON,RCON,NCON
+      END DO
+      WRITE(51,5643) EGRWLK
+ 5643 FORMAT('EGRWLK=',F9.5,4(',',F9.5))
+      END IF
+C
+C---------------------------------------------------------------------
+C     Calculate Fixed Guideway Drive Egress Constants
+C
+      IF(CCODE(23)) THEN
+      WRITE(26,5718)
+ 5718 FORMAT(/15X,'Fixed Guideway Drive Egress Constants',/,
+     *        15X,'-------------------------------------',/,
+     *  1X,'                 Obs     Est    Existing               ',
+     *        'New'/
+     *  1X,'    Mode        Value   Value   Constant Adjustment  ',
+     *     'Constant'/
+     *  1X,'-------------  ------- ------- --------- ---------- ',
+     *     '---------')
+      DO IMODE=1,5
+      IF(IMODE.EQ.3.OR.IMODE.EQ.4) CYCLE
+      POBS=OBS_DRV_EGR(IMODE)
+      PEST=0.0
+      DO K=1,MAX_STATIONS
+      IF(STANUM(K).NE.IMODE) CYCLE
+      PEST=PEST+STASUM2(K,4)
+      END DO
+      RCON=0.0
+      IF(POBS.GT.0.0.AND.PEST.GT.0.0) THEN
+      RCON=DLOG(POBS/PEST)
+      END IF
+      ECON=EGRDRV(IMODE)
+      NCON=ECON+ADJFCT2*RCON
+      NCON=DMAX1(NCON,MINVAL)
+      IF(POBS.EQ.0.0) NCON=MINVAL      
+      EGRDRV(IMODE)=NCON
+      WRITE(26,5632) NAME(IMODE),POBS,PEST,ECON,RCON,NCON
+      END DO
+      WRITE(51,5644) EGRDRV
+ 5644 FORMAT('EGRDRV=',F9.5,4(',',F9.5))
+      END IF
+C
+C----------------------------------------------------------------------
+C     Calculate KNR to Urban Rail Constant
+C
+      IF(CCODE(79)) THEN
+      WRITE(26,4429)
+ 4429 FORMAT(/15X,'Kiss-n-Ride to Urban Rail Constants',/,
+     *        15X,'-----------------------------------',/,
+     *  1X,' Market'/
+     *  1X,'Segment      Obs     Est    Existing               New'/
+     *  1X,' Level      Value   Value   Constant Adjustment  Constant'/
+     *  1X,'---------  ------- ------- --------- ---------- ---------')
+      POBS=0.0
+      PEST=0.0
+      DO  INC=1,NCATS
+         POBS=POBS+OESUM(18,INC)
+         PEST=PEST+TESUM(18,INC)
+      END DO
+         RCON=0.0
+         IF(PEST.GT.0) THEN
+            RCON=DLOG(POBS/PEST)
+         END IF
+         ECON=KKUR(1)
+         NCON=ECON+ADJFCT*RCON
+         IF(POBS.EQ.0.0) NCON=MINVAL
+         NCON=DMAX1(NCON,MINVAL)
+         KKUR(1)=NCON
+         KKUR(2)=NCON
+         KKUR(3)=NCON
+         KKUR(4)=NCON
+         KKUR(5)=NCON
+         WRITE(26,4449) POBS,PEST,ECON,RCON,NCON
+ 4449    FORMAT(1X,'KKUR   ',3X,2(1X,F7.0),1X,
+     A                             F9.5,1X,F10.5,1X,F9.5)
+      WRITE(51,4448) KKUR
+ 4448 FORMAT('KKUR=',F9.5,4(',',F9.5))
       END IF
 C
 C
