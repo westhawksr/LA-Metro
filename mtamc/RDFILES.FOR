@@ -171,7 +171,7 @@ C
       CALL GETTIM(IHR,IMIN,ISEC,I100)
       IYR=IYR-2000
       WRITE(26,8001) IMON,IDAY,IYR,IHR,IMIN,ISEC
- 8001 FORMAT(/20X,' PROGRAM MTAMC  (30Mar20)',/,
+ 8001 FORMAT(/20X,' PROGRAM MTAMC  (28May20)',/,
      *        20X,' -------------------------',/,
      *        20X,'      [Version 11.0]',//,
      *        20X,'     Date:',I2,'/',I2,'/',I2/
