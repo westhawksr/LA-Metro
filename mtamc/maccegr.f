@@ -78,6 +78,11 @@ C....BRT
       STASUMP(K,23)=STASUM(K,23)+STASUM6(K,5,2)+STASUM6(K,5,4)
       END DO
       END IF
+      DO K=1,MAX_STATIONS
+      DO K1=1,4
+      IF(STASUMA(K,K1).LT.0) STASUMA(K,K1)=0.0
+      END DO
+      END DO
 C---------------------------------------------------------------
 C
 C  SUMMARIZE STATION MODE OF ACCESS DATA
