@@ -733,7 +733,7 @@ C
       WRITE(24) HEAD1,HEAD2
       END IF
       IF(LOGSUM) THEN
-      NUMPUR=18
+      NUMPUR=30
       TABLES=2**15-1
       WRITE(28) HEAD1,HEAD2
       END IF
@@ -2239,8 +2239,6 @@ C...................................................................
       ENDIF
 C...................................................................
 	      IF(IZ.GT.MAX_ZONES.OR.JZ.GT.MAX_ZONES) GO TO 200
-	      KLAX=0.0
-	      IF(JZ.EQ.LAXZ) KLAX=KURLAX
 C
 C   COMPUTE BICYCLE ZONAL LEVEL ATTRIBUTE COMMON UTILITY VALUE
 C
@@ -7511,7 +7509,7 @@ C
 C..URBAN RAIL
       IF(LSURB.NE.0.0) THEN
       UTIL(61)=LSUM2UR*LSURB + KUR(C)/(LSUM1TRN*ADJ1UR) 
-     *                     + KCCBD(2)/LSUM1TRN + KLAX/LSUM1TRN 
+     *                     + KCCBD(2)/LSUM1TRN
      *                     + (ZHHD(16,IZ) + ZHHD(17,JZ))/LSUM1TRN +
      *        (PCONST(DIZ) + ACONST(DJZ))/LSUM1TRN
       ALOGSUM(C,JZ)=ALOGSUM(C,JZ)+(MWALK(M)*UTIL(61)*LSUM1TRN)/
